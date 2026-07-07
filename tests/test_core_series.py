@@ -1,21 +1,13 @@
-"""Tests for the pandas-backed TimeSeries container."""
-
 from datetime import datetime, timezone
 
-import pandas as pd
 import pytest
 
 from whytrend.core import TimeSeries, TimeSeriesPoint
 
 
-def _make_frame() -> pd.DataFrame:
-    timestamps = pd.date_range("2026-01-01", periods=5, freq="D", tz="UTC")
-    return pd.DataFrame({"timestamp": timestamps, "value": [120.0, 123.0, 121.0, 610.0, 640.0]})
-
-
-def test_from_dataframe_builds_datetime_indexed_series() -> None:
+def test_from_dataframe_builds_datetime_indexed_series(spike_dataframe) -> None:
     series = TimeSeries.from_dataframe(
-        _make_frame(),
+        spike_dataframe,
         time_col="timestamp",
         value_col="value",
         name="python_interest",
@@ -29,30 +21,18 @@ def test_from_dataframe_builds_datetime_indexed_series() -> None:
     assert series.data.iloc[-1] == 640.0
 
 
-def test_to_schema_round_trip_preserves_points() -> None:
-    original = TimeSeries.from_dataframe(
-        _make_frame(),
-        time_col="timestamp",
-        value_col="value",
-        name="python_interest",
-        keyword="Python",
-        metadata={"source": "csv"},
-    )
+def test_to_schema_round_trip_preserves_points(python_interest_series) -> None:
+    restored = TimeSeries.from_schema(python_interest_series.to_schema())
 
-    restored = TimeSeries.from_schema(original.to_schema())
-
-    assert restored.name == original.name
-    assert restored.keyword == original.keyword
-    assert restored.metadata == original.metadata
-    assert list(restored.data) == list(original.data)
+    assert restored.name == python_interest_series.name
+    assert restored.keyword == python_interest_series.keyword
+    assert restored.metadata == python_interest_series.metadata
+    assert list(restored.data) == list(python_interest_series.data)
 
 
-def test_window_extracts_inclusive_slice() -> None:
-    series = TimeSeries.from_dataframe(_make_frame(), time_col="timestamp", value_col="value")
-
-    start = datetime(2026, 1, 3, tzinfo=timezone.utc)
-    end = datetime(2026, 1, 4, tzinfo=timezone.utc)
-    sliced = series.window(start, end)
+def test_window_extracts_inclusive_slice(python_interest_series, spike_window) -> None:
+    start, end = spike_window
+    sliced = python_interest_series.window(start, end)
 
     assert len(sliced) == 2
     assert sliced.data.iloc[0] == 121.0

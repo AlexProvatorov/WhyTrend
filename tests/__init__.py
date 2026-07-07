@@ -1,1 +1,0 @@
-"""WhyTrend test suite."""

@@ -1,7 +1,3 @@
-"""Tests for pydantic core models."""
-
-from datetime import datetime, timedelta, timezone
-
 import pytest
 from pydantic import ValidationError
 
@@ -18,22 +14,18 @@ from whytrend.core import (
 )
 
 
-def _ts(hours: int = 0) -> datetime:
-    return datetime(2026, 3, 15, 12, 0, tzinfo=timezone.utc) + timedelta(hours=hours)
-
-
-def test_detection_result_primary_returns_highest_score() -> None:
+def test_detection_result_primary_returns_highest_score(utc_ts) -> None:
     result = DetectionResult(
         detector_name="zscore",
         detections=[
             Detection(
-                timestamp=_ts(),
+                timestamp=utc_ts(),
                 anomaly_type=AnomalyType.SPIKE,
                 value=610.0,
                 score=0.7,
             ),
             Detection(
-                timestamp=_ts(1),
+                timestamp=utc_ts(1),
                 anomaly_type=AnomalyType.SPIKE,
                 value=640.0,
                 score=0.95,
@@ -45,13 +37,13 @@ def test_detection_result_primary_returns_highest_score() -> None:
     assert result.primary.score == 0.95
 
 
-def test_event_rejects_invalid_window() -> None:
+def test_event_rejects_invalid_window(utc_ts) -> None:
     with pytest.raises(ValidationError):
         Event(
             anomaly_type=AnomalyType.SPIKE,
-            timestamp=_ts(),
-            window_start=_ts(24),
-            window_end=_ts(),
+            timestamp=utc_ts(),
+            window_start=utc_ts(24),
+            window_end=utc_ts(),
             keyword="Python",
             value=610.0,
             detection_score=0.9,
@@ -96,7 +88,7 @@ def test_evidence_score_must_be_between_zero_and_one() -> None:
         )
 
 
-def test_time_series_point_accepts_timezone_aware_timestamp() -> None:
-    point = TimeSeriesPoint(timestamp=_ts(), value=120.0)
+def test_time_series_point_accepts_timezone_aware_timestamp(utc_ts) -> None:
+    point = TimeSeriesPoint(timestamp=utc_ts(), value=120.0)
 
     assert point.timestamp.tzinfo is not None
