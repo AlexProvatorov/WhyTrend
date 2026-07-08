@@ -6,7 +6,9 @@ from typing import Callable
 import pandas as pd
 import pytest
 
-from whytrend.core import TimeSeries
+from whytrend.core import AnomalyType, Detection, Evidence, TimeSeries
+from whytrend.pipeline import Pipeline
+from tests.stubs import StubCollector, StubDetector, StubExplainer, StubSource
 
 UTC = timezone.utc
 PYTHON_KEYWORD = "Python"
@@ -52,3 +54,47 @@ def spike_window() -> tuple[datetime, datetime]:
     start = datetime(2026, 1, 3, tzinfo=UTC)
     end = datetime(2026, 1, 4, tzinfo=UTC)
     return start, end
+
+
+@pytest.fixture
+def spike_detection(utc_ts) -> Detection:
+    return Detection(
+        timestamp=datetime(2026, 1, 4, tzinfo=UTC),
+        anomaly_type=AnomalyType.SPIKE,
+        value=610.0,
+        score=0.95,
+        expected_value=121.0,
+    )
+
+
+@pytest.fixture
+def sample_evidence(utc_ts) -> Evidence:
+    return Evidence(
+        title="Python 3.13 released",
+        url="https://example.com/python-3-13",
+        snippet="Python 3.13 brings performance improvements.",
+        source_name="Google News",
+        published_at=utc_ts(),
+        relevance_score=0.9,
+    )
+
+
+@pytest.fixture
+def pipeline_components(python_interest_series, spike_detection, sample_evidence):
+    source = StubSource(python_interest_series)
+    detector = StubDetector([spike_detection])
+    collector = StubCollector([sample_evidence])
+    explainer = StubExplainer()
+    return source, detector, collector, explainer
+
+
+@pytest.fixture
+def configured_pipeline(pipeline_components):
+    source, detector, collector, explainer = pipeline_components
+    return (
+        Pipeline(window_days=3)
+        .add_source(source)
+        .add_detector(detector)
+        .add_collector(collector)
+        .add_explainer(explainer)
+    )
