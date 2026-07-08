@@ -1,5 +1,6 @@
 """WhyTrend — Explainable Time Series Analysis Framework."""
 
+from whytrend.detectors import ProphetDetector, ZScoreDetector
 from whytrend.pipeline import Pipeline
 from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSource
 
@@ -12,5 +13,7 @@ __all__ = [
     "PandasSource",
     "ParquetSource",
     "Pipeline",
+    "ProphetDetector",
+    "ZScoreDetector",
     "__version__",
 ]

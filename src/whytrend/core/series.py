@@ -4,11 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import pandas as pd
 
 from whytrend.core.models import TimeSeriesPoint, TimeSeriesSchema
+
+
+def _to_datetime(value: datetime | pd.Timestamp) -> datetime:
+    """Convert a pandas timestamp-like value to a Python datetime."""
+    if isinstance(value, datetime):
+        return value
+    return cast(datetime, value.to_pydatetime())
 
 
 @dataclass(slots=True)
@@ -101,17 +108,18 @@ class TimeSeries:
 
     def to_dataframe(self) -> pd.DataFrame:
         """Return a DataFrame with ``timestamp`` and ``value`` columns."""
-        return (
-            self.data.rename("value")
-            .reset_index(names="timestamp")
-            .loc[:, ["timestamp", "value"]]
-        )
+        frame = self.data.to_frame(name="value")
+        frame.index.name = "timestamp"
+        return frame.reset_index()
 
     def to_schema(self) -> TimeSeriesSchema:
         """Serialize to a JSON-friendly pydantic schema."""
         points = [
-            TimeSeriesPoint(timestamp=timestamp.to_pydatetime(), value=float(value))
-            for timestamp, value in self.data.items()
+            TimeSeriesPoint(
+                timestamp=_to_datetime(cast(pd.Timestamp, self.data.index[index])),
+                value=float(self.data.iloc[index]),
+            )
+            for index in range(len(self.data))
         ]
         return TimeSeriesSchema(
             name=self.name,
@@ -148,11 +156,11 @@ class TimeSeries:
 
     @property
     def start(self) -> datetime:
-        return self.data.index[0].to_pydatetime()
+        return _to_datetime(cast(pd.Timestamp, self.data.index[0]))
 
     @property
     def end(self) -> datetime:
-        return self.data.index[-1].to_pydatetime()
+        return _to_datetime(cast(pd.Timestamp, self.data.index[-1]))
 
     def __len__(self) -> int:
         return len(self.data)
