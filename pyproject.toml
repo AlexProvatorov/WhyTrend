@@ -41,13 +41,18 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.8",
     "mypy>=1.13",
+    "pandas-stubs>=2.0",
+    "pyarrow>=15.0",
+    "pytrends>=4.9",
 ]
 prophet = ["prophet>=1.1"]
 ruptures = ["ruptures>=1.1"]
 ranking = ["sentence-transformers>=3.0"]
 openai = ["openai>=1.0"]
+trends = ["pytrends>=4.9"]
+parquet = ["pyarrow>=15.0"]
 all = [
-    "whytrend[prophet,ruptures,ranking,openai]",
+    "whytrend[prophet,ruptures,ranking,openai,trends,parquet]",
 ]
 
 [project.urls]
@@ -62,6 +67,16 @@ packages = ["src/whytrend"]
 line-length = 100
 target-version = "py311"
 
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["pytrends.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
