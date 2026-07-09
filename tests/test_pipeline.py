@@ -2,6 +2,7 @@ import pytest
 
 from whytrend.core import AnomalyType
 from whytrend.pipeline import Pipeline
+from whytrend.rankers import BM25Ranker
 from tests.stubs import FailingCollector, StubCollector, StubDetector, StubExplainer, StubSource
 
 
@@ -79,6 +80,16 @@ async def test_failing_collector_does_not_break_pipeline(
 
     assert len(report.explanations) == 1
     assert report.explanations[0].metadata["evidence_count"] == 1
+
+
+def test_duplicate_ranker_raises(pipeline_components) -> None:
+    source, detector, collector, explainer = pipeline_components
+    pipeline = Pipeline().add_source(source).add_detector(detector).add_ranker(BM25Ranker())
+
+    with pytest.raises(ValueError, match="ranker is already configured"):
+        pipeline.add_ranker(BM25Ranker())
+
+    pipeline.add_collector(collector).add_explainer(explainer)
 
 
 def test_run_requires_source() -> None:

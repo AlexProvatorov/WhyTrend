@@ -6,7 +6,7 @@ import asyncio
 from typing import Self
 
 from whytrend.core.models import Event, Evidence, Explanation, Report
-from whytrend.core.protocols import Collector, Detector, Explainer, Source
+from whytrend.core.protocols import Collector, Detector, Explainer, Ranker, Source
 from whytrend.core.series import TimeSeries
 from whytrend.events.builder import EventBuilder
 
@@ -18,6 +18,7 @@ class Pipeline:
         self._source: Source | None = None
         self._detector: Detector | None = None
         self._collectors: list[Collector] = []
+        self._ranker: Ranker | None = None
         self._explainer: Explainer | None = None
         self._event_builder = EventBuilder(window_days=window_days)
 
@@ -37,6 +38,13 @@ class Pipeline:
 
     def add_collector(self, collector: Collector) -> Self:
         self._collectors.append(collector)
+        return self
+
+    def add_ranker(self, ranker: Ranker) -> Self:
+        if self._ranker is not None:
+            msg = "ranker is already configured"
+            raise ValueError(msg)
+        self._ranker = ranker
         return self
 
     def add_explainer(self, explainer: Explainer) -> Self:
@@ -76,6 +84,7 @@ class Pipeline:
                 "detector": detector.name,
                 "source": source.name,
                 "explainer": explainer.name,
+                "ranker": self._ranker.name if self._ranker is not None else None,
                 "collectors": [collector.name for collector in self._collectors],
                 "event_count": len(events),
             },
@@ -83,6 +92,8 @@ class Pipeline:
 
     async def _explain_event(self, explainer: Explainer, event: Event) -> Explanation:
         evidences = await self._collect_evidences(event)
+        if self._ranker is not None:
+            evidences = self._ranker.rank(event, evidences)
         return await explainer.explain(event, evidences)
 
     async def _collect_evidences(self, event: Event) -> list[Evidence]:
