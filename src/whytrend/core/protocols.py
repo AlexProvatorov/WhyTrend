@@ -183,3 +183,16 @@ class BaseExplainer(ABC):
     @abstractmethod
     async def explain(self, event: Event, evidences: list[Evidence]) -> Explanation:
         raise NotImplementedError
+
+
+class BaseReportRenderer(ABC):
+    """Optional ABC for report renderer implementations."""
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def render(self, report: Report) -> str:
+        raise NotImplementedError

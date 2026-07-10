@@ -139,4 +139,12 @@ class Report(WhyTrendModel):
 
     def to_json(self) -> str:
         """Return a JSON string suitable for storage or APIs."""
-        return self.model_dump_json(indent=2)
+        from whytrend.report import JSONRenderer
+
+        return JSONRenderer().render(self)
+
+    def to_markdown(self) -> str:
+        """Return a Markdown representation of the report."""
+        from whytrend.report import MarkdownRenderer
+
+        return MarkdownRenderer().render(self)

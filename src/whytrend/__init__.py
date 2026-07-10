@@ -5,6 +5,7 @@ from whytrend.detectors import ProphetDetector, ZScoreDetector
 from whytrend.explainers import LLMExplainer, MockLLMProvider, OllamaExplainer, OpenAIExplainer
 from whytrend.rankers import BM25Ranker, EmbeddingRanker
 from whytrend.pipeline import Pipeline
+from whytrend.report import JSONRenderer, MarkdownRenderer
 from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSource
 
 __version__ = "0.1.0"
@@ -16,7 +17,9 @@ __all__ = [
     "EmbeddingRanker",
     "GoogleTrends",
     "HackerNewsCollector",
+    "JSONRenderer",
     "LLMExplainer",
+    "MarkdownRenderer",
     "MockLLMProvider",
     "OllamaExplainer",
     "OpenAIExplainer",
