@@ -56,9 +56,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/whytrend/whytrend"
-Documentation = "https://github.com/whytrend/whytrend#readme"
-Repository = "https://github.com/whytrend/whytrend"
+Homepage = "https://github.com/AlexProvatorov/WhyTrend"
+Documentation = "https://github.com/AlexProvatorov/WhyTrend#readme"
+Repository = "https://github.com/AlexProvatorov/WhyTrend"
+Issues = "https://github.com/AlexProvatorov/WhyTrend/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/whytrend"]

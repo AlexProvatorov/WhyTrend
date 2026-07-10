@@ -14,6 +14,7 @@ venv/
 env/
 
 # Tooling
+uv.lock
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-from whytrend.core.enums import AnomalyType
 from whytrend.core.models import Detection, DetectionResult
 from whytrend.core.protocols import BaseDetector
 from whytrend.core.series import TimeSeries
