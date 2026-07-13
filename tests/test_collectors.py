@@ -1,10 +1,14 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 import pytest
 
-from whytrend.collectors import HackerNewsCollector, WikipediaCollector
+from whytrend.collectors import GoogleNewsCollector, HackerNewsCollector, WikipediaCollector
 from whytrend.core import AnomalyType, Event
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+GOOGLE_NEWS_SAMPLE_RSS = (FIXTURES_DIR / "google_news_sample.xml").read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -23,6 +27,47 @@ def sample_event() -> Event:
 
 def _mock_transport(handler) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+@pytest.mark.asyncio
+async def test_google_news_collector_parses_rss(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "news.google.com"
+        assert request.url.params["q"] == "Python"
+        return httpx.Response(200, text=GOOGLE_NEWS_SAMPLE_RSS)
+
+    collector = GoogleNewsCollector(client=_mock_transport(handler))
+    evidences = await collector.collect(sample_event)
+
+    assert len(evidences) == 1
+    assert evidences[0].title == "Python 3.13 tops developer headlines"
+    assert evidences[0].source_name == "google_news"
+    assert evidences[0].url == "https://example.com/python-headlines"
+    assert evidences[0].snippet == "Major release drives search interest."
+    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=timezone.utc)
+    assert evidences[0].metadata["publisher"] == "Example News"
+
+
+@pytest.mark.asyncio
+async def test_google_news_collector_filters_articles_outside_window(sample_event: Event) -> None:
+    collector = GoogleNewsCollector()
+    evidences = collector._parse_rss(
+        GOOGLE_NEWS_SAMPLE_RSS,
+        window_start=sample_event.window_start,
+        window_end=sample_event.window_end,
+    )
+
+    assert len(evidences) == 1
+    assert evidences[0].title == "Python 3.13 tops developer headlines"
+
+
+@pytest.mark.asyncio
+async def test_google_news_collector_returns_empty_for_invalid_xml(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="not xml")
+
+    collector = GoogleNewsCollector(client=_mock_transport(handler))
+    assert await collector.collect(sample_event) == []
 
 
 @pytest.mark.asyncio
@@ -112,9 +157,11 @@ async def test_collectors_return_empty_list_for_invalid_payload(sample_event: Ev
 
     hn_collector = HackerNewsCollector(client=_mock_transport(handler))
     wiki_collector = WikipediaCollector(client=_mock_transport(handler))
+    news_collector = GoogleNewsCollector(client=_mock_transport(handler))
 
     assert await hn_collector.collect(sample_event) == []
     assert await wiki_collector.collect(sample_event) == []
+    assert await news_collector.collect(sample_event) == []
 
 
 def test_collector_validation() -> None:
@@ -123,3 +170,9 @@ def test_collector_validation() -> None:
 
     with pytest.raises(ValueError, match="language cannot be empty"):
         WikipediaCollector(language="  ")
+
+    with pytest.raises(ValueError, match="max_results must be >= 1"):
+        GoogleNewsCollector(max_results=0)
+
+    with pytest.raises(ValueError, match="region cannot be empty"):
+        GoogleNewsCollector(region="  ")

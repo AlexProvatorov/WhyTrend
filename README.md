@@ -79,13 +79,14 @@ from whytrend import (
     Pipeline,
     ProphetDetector,
 )
-from whytrend.collectors import HackerNewsCollector, WikipediaCollector
+from whytrend.collectors import GoogleNewsCollector, HackerNewsCollector, WikipediaCollector
 from whytrend.rankers import BM25Ranker
 
 pipeline = (
     Pipeline()
     .add_source(GoogleTrends("Python"))
     .add_detector(ProphetDetector())
+    .add_collector(GoogleNewsCollector())
     .add_collector(HackerNewsCollector())
     .add_collector(WikipediaCollector())
     .add_ranker(BM25Ranker())
@@ -109,7 +110,7 @@ Source → Detector → Event Builder → Collectors → Ranker → Explainer �
 Core MVP is in place. Next focus: **integrations and ecosystem**.
 
 ### v0.2 — More collectors
-- [ ] Google News
+- [x] Google News
 - [ ] Reddit
 - [ ] GitHub Releases
 - [ ] RSS / Stack Overflow
