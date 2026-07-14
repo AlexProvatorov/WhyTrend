@@ -1,6 +1,11 @@
 """WhyTrend — Explainable Time Series Analysis Framework."""
 
-from whytrend.collectors import GoogleNewsCollector, HackerNewsCollector, WikipediaCollector
+from whytrend.collectors import (
+    GoogleNewsCollector,
+    HackerNewsCollector,
+    RedditCollector,
+    WikipediaCollector,
+)
 from whytrend.detectors import ProphetDetector, ZScoreDetector
 from whytrend.explainers import LLMExplainer, MockLLMProvider, OllamaExplainer, OpenAIExplainer
 from whytrend.rankers import BM25Ranker, EmbeddingRanker
@@ -19,6 +24,7 @@ __all__ = [
     "GoogleNewsCollector",
     "HackerNewsCollector",
     "JSONRenderer",
+    "RedditCollector",
     "LLMExplainer",
     "MarkdownRenderer",
     "MockLLMProvider",

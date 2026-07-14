@@ -79,7 +79,12 @@ from whytrend import (
     Pipeline,
     ProphetDetector,
 )
-from whytrend.collectors import GoogleNewsCollector, HackerNewsCollector, WikipediaCollector
+from whytrend.collectors import (
+    GoogleNewsCollector,
+    HackerNewsCollector,
+    RedditCollector,
+    WikipediaCollector,
+)
 from whytrend.rankers import BM25Ranker
 
 pipeline = (
@@ -88,9 +93,10 @@ pipeline = (
     .add_detector(ProphetDetector())
     .add_collector(GoogleNewsCollector())
     .add_collector(HackerNewsCollector())
+    .add_collector(RedditCollector())  # REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET
     .add_collector(WikipediaCollector())
     .add_ranker(BM25Ranker())
-    .add_explainer(OpenAIExplainer())  # needs OPENAI_API_KEY
+    .add_explainer(OpenAIExplainer())  # OPENAI_API_KEY env var or api_key="..."
 )
 
 report = pipeline.run()
@@ -98,6 +104,19 @@ print(report.executive_summary)
 ```
 
 Use `OllamaExplainer(model="llama3.2")` for a local LLM instead of OpenAI.
+
+Reddit credentials (create at https://www.reddit.com/prefs/apps):
+
+```bash
+export REDDIT_CLIENT_ID="..."
+export REDDIT_CLIENT_SECRET="..."
+```
+
+Or pass them explicitly:
+
+```python
+RedditCollector(client_id="...", client_secret="...", subreddits=["Python", "MachineLearning"])
+```
 
 ## Architecture
 
@@ -111,7 +130,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 
 ### v0.2 — More collectors
 - [x] Google News
-- [ ] Reddit
+- [x] Reddit
 - [ ] GitHub Releases
 - [ ] RSS / Stack Overflow
 
