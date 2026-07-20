@@ -36,7 +36,9 @@ class MarkdownRenderer(BaseReportRenderer):
                 lines.extend(self._render_explanation(index, explanation))
 
         if report.metadata:
-            lines.extend(["## Metadata", "", "```json", _format_metadata(report.metadata), "```", ""])
+            lines.extend(
+                ["## Metadata", "", "```json", _format_metadata(report.metadata), "```", ""]
+            )
 
         return "\n".join(lines).rstrip() + "\n"
 

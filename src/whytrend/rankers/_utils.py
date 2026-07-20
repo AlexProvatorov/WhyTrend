@@ -21,9 +21,7 @@ def build_query(event: Event) -> str:
 
 def evidence_text(evidence: Evidence) -> str:
     return " ".join(
-        part
-        for part in (evidence.title, evidence.snippet, evidence.source_name)
-        if part
+        part for part in (evidence.title, evidence.snippet, evidence.source_name) if part
     )
 
 

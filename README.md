@@ -164,10 +164,29 @@ Track progress in [GitHub Issues](https://github.com/AlexProvatorov/WhyTrend/iss
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-ruff check src tests
-mypy src/whytrend
-pytest
+make install   # install with detected tool (uv / poetry / pip)
+make check     # ruff + format check + mypy + pytest
+```
+
+Supports the three common workflows:
+
+| Tool | Install | Run checks |
+|------|---------|------------|
+| **uv** (default if installed) | `make install` | `make check` |
+| **poetry** | `make install TOOL=poetry` | `make check TOOL=poetry` |
+| **pip** / venv | `make install TOOL=pip` | `make check TOOL=pip` |
+
+Auto-detect order: `uv` → `poetry` → `pip`. Override anytime with `TOOL=...`.
+
+Useful targets:
+
+```bash
+make lint          # ruff check
+make format        # ruff format + autofix
+make format-check  # ruff format --check
+make typecheck     # mypy
+make test          # pytest
+make help          # list all targets
 ```
 
 ## Author

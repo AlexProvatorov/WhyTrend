@@ -98,9 +98,7 @@ async def test_openai_provider_parses_json_response(llm_event: Event, llm_eviden
                 create=AsyncMock(
                     return_value=SimpleNamespace(
                         choices=[
-                            SimpleNamespace(
-                                message=SimpleNamespace(content=json.dumps(payload))
-                            )
+                            SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))
                         ]
                     )
                 )

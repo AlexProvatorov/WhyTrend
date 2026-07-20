@@ -263,9 +263,7 @@ class RedditCollector(BaseCollector):
         url = ""
         if permalink:
             url = (
-                permalink
-                if permalink.startswith("http")
-                else f"https://www.reddit.com{permalink}"
+                permalink if permalink.startswith("http") else f"https://www.reddit.com{permalink}"
             )
 
         if kind == "t1":
