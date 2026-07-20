@@ -1,6 +1,7 @@
 """WhyTrend — Explainable Time Series Analysis Framework."""
 
 from whytrend.collectors import (
+    GitHubReleasesCollector,
     GoogleNewsCollector,
     HackerNewsCollector,
     RedditCollector,
@@ -20,6 +21,7 @@ __all__ = [
     "BM25Ranker",
     "CSVSource",
     "EmbeddingRanker",
+    "GitHubReleasesCollector",
     "GoogleTrends",
     "GoogleNewsCollector",
     "HackerNewsCollector",

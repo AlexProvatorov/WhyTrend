@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from whytrend.collectors import (
+    GitHubReleasesCollector,
     GoogleNewsCollector,
     HackerNewsCollector,
     RedditCollector,
@@ -323,6 +324,154 @@ async def test_reddit_collector_requires_credentials(
 
 
 @pytest.mark.asyncio
+async def test_github_releases_collector_parses_releases(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "api.github.com"
+        if request.url.path == "/search/repositories":
+            assert "Python" in request.url.params["q"]
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {"full_name": "python/cpython"},
+                    ]
+                },
+            )
+
+        assert request.url.path == "/repos/python/cpython/releases"
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": 1,
+                    "tag_name": "v3.13.0",
+                    "name": "Python 3.13.0",
+                    "body": "Major release with performance improvements.",
+                    "html_url": "https://github.com/python/cpython/releases/tag/v3.13.0",
+                    "published_at": "2026-01-03T12:00:00Z",
+                },
+                {
+                    "id": 2,
+                    "tag_name": "v3.12.0",
+                    "name": "Python 3.12.0",
+                    "body": "Older release outside the window.",
+                    "html_url": "https://github.com/python/cpython/releases/tag/v3.12.0",
+                    "published_at": "2025-12-01T12:00:00Z",
+                },
+            ],
+        )
+
+    collector = GitHubReleasesCollector(client=_mock_transport(handler))
+    evidences = await collector.collect(sample_event)
+
+    assert collector.name == "github_releases"
+    assert len(evidences) == 1
+    assert evidences[0].title == "Python 3.13.0"
+    assert evidences[0].source_name == "github_releases"
+    assert evidences[0].url == "https://github.com/python/cpython/releases/tag/v3.13.0"
+    assert evidences[0].snippet.startswith("Major release")
+    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=timezone.utc)
+    assert evidences[0].metadata["repo"] == "python/cpython"
+    assert evidences[0].metadata["tag_name"] == "v3.13.0"
+
+
+@pytest.mark.asyncio
+async def test_github_releases_collector_filters_outside_window(sample_event: Event) -> None:
+    collector = GitHubReleasesCollector()
+    evidences = collector._parse_releases(
+        [
+            {
+                "id": 1,
+                "tag_name": "v1.0.0",
+                "name": "Inside window Python release",
+                "body": "Notes",
+                "html_url": "https://github.com/example/python/releases/tag/v1.0.0",
+                "published_at": "2026-01-04T00:00:00Z",
+                "_repo_full_name": "example/python",
+            },
+            {
+                "id": 2,
+                "tag_name": "v0.9.0",
+                "name": "Outside window Python release",
+                "body": "Notes",
+                "html_url": "https://github.com/example/python/releases/tag/v0.9.0",
+                "published_at": "2025-12-01T00:00:00Z",
+                "_repo_full_name": "example/python",
+            },
+        ],
+        keyword="Python",
+        window_start=sample_event.window_start,
+        window_end=sample_event.window_end,
+    )
+
+    assert len(evidences) == 1
+    assert evidences[0].title == "Inside window Python release"
+
+
+@pytest.mark.asyncio
+async def test_github_releases_collector_uses_repo_allowlist(sample_event: Event) -> None:
+    seen_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_paths.append(request.url.path)
+        assert request.url.path.startswith("/repos/")
+        assert request.headers.get("Authorization") == "Bearer test-token"
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": 10,
+                    "tag_name": "v1.2.3",
+                    "name": "Python tooling release",
+                    "body": "Release notes",
+                    "html_url": f"https://github.com{request.url.path.replace('/releases', '')}/releases/tag/v1.2.3",
+                    "published_at": "2026-01-02T00:00:00Z",
+                }
+            ],
+        )
+
+    collector = GitHubReleasesCollector(
+        token="test-token",
+        repos=["acme/python-tools", "acme/python-cli"],
+        client=_mock_transport(handler),
+    )
+    evidences = await collector.collect(sample_event)
+
+    assert seen_paths == [
+        "/repos/acme/python-tools/releases",
+        "/repos/acme/python-cli/releases",
+    ]
+    assert len(evidences) == 2
+
+
+@pytest.mark.asyncio
+async def test_github_releases_collector_returns_empty_on_rate_limit(
+    sample_event: Event,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"message": "API rate limit exceeded"})
+
+    collector = GitHubReleasesCollector(client=_mock_transport(handler))
+    assert await collector.collect(sample_event) == []
+
+
+@pytest.mark.asyncio
+async def test_github_releases_collector_returns_empty_for_invalid_payload(
+    sample_event: Event,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/search/repositories":
+            return httpx.Response(200, json={"unexpected": True})
+        return httpx.Response(200, json={"not": "a list"})
+
+    collector = GitHubReleasesCollector(
+        repos=["python/cpython"],
+        client=_mock_transport(handler),
+    )
+    assert await collector.collect(sample_event) == []
+
+
+@pytest.mark.asyncio
 async def test_collectors_return_empty_list_for_invalid_payload(sample_event: Event) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"unexpected": True})
@@ -362,3 +511,15 @@ def test_collector_validation() -> None:
 
     with pytest.raises(ValueError, match="subreddits cannot be empty"):
         RedditCollector(subreddits=["  "])
+
+    with pytest.raises(ValueError, match="max_results must be >= 1"):
+        GitHubReleasesCollector(max_results=0)
+
+    with pytest.raises(ValueError, match="max_repos must be >= 1"):
+        GitHubReleasesCollector(max_repos=0)
+
+    with pytest.raises(ValueError, match="repos cannot be empty"):
+        GitHubReleasesCollector(repos=["  "])
+
+    with pytest.raises(ValueError, match="owner/name"):
+        GitHubReleasesCollector(repos=["cpython"])

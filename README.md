@@ -80,6 +80,7 @@ from whytrend import (
     ProphetDetector,
 )
 from whytrend.collectors import (
+    GitHubReleasesCollector,
     GoogleNewsCollector,
     HackerNewsCollector,
     RedditCollector,
@@ -94,6 +95,7 @@ pipeline = (
     .add_collector(GoogleNewsCollector())
     .add_collector(HackerNewsCollector())
     .add_collector(RedditCollector())  # REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET
+    .add_collector(GitHubReleasesCollector())  # optional GITHUB_TOKEN
     .add_collector(WikipediaCollector())
     .add_ranker(BM25Ranker())
     .add_explainer(OpenAIExplainer())  # OPENAI_API_KEY env var or api_key="..."
@@ -118,6 +120,16 @@ Or pass them explicitly:
 RedditCollector(client_id="...", client_secret="...", subreddits=["Python", "MachineLearning"])
 ```
 
+GitHub Releases works without a token for light use. For higher rate limits:
+
+```bash
+export GITHUB_TOKEN="ghp_..."
+```
+
+```python
+GitHubReleasesCollector(token="ghp_...", repos=["python/cpython"])
+```
+
 ## Architecture
 
 ```
@@ -131,7 +143,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 ### v0.2 — More collectors
 - [x] Google News
 - [x] Reddit
-- [ ] GitHub Releases
+- [x] GitHub Releases
 - [ ] RSS / Stack Overflow
 
 ### v0.3 — More detectors
