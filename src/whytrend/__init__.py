@@ -4,13 +4,15 @@ from whytrend.collectors import (
     GitHubReleasesCollector,
     GoogleNewsCollector,
     HackerNewsCollector,
+    RSSFeedCollector,
     RedditCollector,
+    StackOverflowCollector,
     WikipediaCollector,
 )
 from whytrend.detectors import ProphetDetector, ZScoreDetector
 from whytrend.explainers import LLMExplainer, MockLLMProvider, OllamaExplainer, OpenAIExplainer
-from whytrend.rankers import BM25Ranker, EmbeddingRanker
 from whytrend.pipeline import Pipeline
+from whytrend.rankers import BM25Ranker, EmbeddingRanker
 from whytrend.report import JSONRenderer, MarkdownRenderer
 from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSource
 
@@ -22,11 +24,10 @@ __all__ = [
     "CSVSource",
     "EmbeddingRanker",
     "GitHubReleasesCollector",
-    "GoogleTrends",
     "GoogleNewsCollector",
+    "GoogleTrends",
     "HackerNewsCollector",
     "JSONRenderer",
-    "RedditCollector",
     "LLMExplainer",
     "MarkdownRenderer",
     "MockLLMProvider",
@@ -36,6 +37,9 @@ __all__ = [
     "ParquetSource",
     "Pipeline",
     "ProphetDetector",
+    "RSSFeedCollector",
+    "RedditCollector",
+    "StackOverflowCollector",
     "WikipediaCollector",
     "ZScoreDetector",
     "__version__",

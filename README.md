@@ -83,7 +83,9 @@ from whytrend.collectors import (
     GitHubReleasesCollector,
     GoogleNewsCollector,
     HackerNewsCollector,
+    RSSFeedCollector,
     RedditCollector,
+    StackOverflowCollector,
     WikipediaCollector,
 )
 from whytrend.rankers import BM25Ranker
@@ -96,6 +98,15 @@ pipeline = (
     .add_collector(HackerNewsCollector())
     .add_collector(RedditCollector())  # REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET
     .add_collector(GitHubReleasesCollector())  # optional GITHUB_TOKEN
+    .add_collector(StackOverflowCollector())  # optional STACKEXCHANGE_KEY
+    .add_collector(
+        RSSFeedCollector(
+            [
+                "https://blog.python.org/feeds/posts/default",
+                "https://pyfound.blogspot.com/feeds/posts/default",
+            ]
+        )
+    )
     .add_collector(WikipediaCollector())
     .add_ranker(BM25Ranker())
     .add_explainer(OpenAIExplainer())  # OPENAI_API_KEY env var or api_key="..."
@@ -130,6 +141,28 @@ export GITHUB_TOKEN="ghp_..."
 GitHubReleasesCollector(token="ghp_...", repos=["python/cpython"])
 ```
 
+Stack Overflow works without a key for light use. For a higher daily quota
+(register at https://stackapps.com/):
+
+```bash
+export STACKEXCHANGE_KEY="..."
+```
+
+```python
+StackOverflowCollector(api_key="...", site="stackoverflow")
+```
+
+Custom RSS/Atom feeds (keyword + time-window filtered):
+
+```python
+RSSFeedCollector(
+    [
+        "https://blog.python.org/feeds/posts/default",
+        "https://hnrss.org/frontpage",
+    ]
+)
+```
+
 ## Architecture
 
 ```
@@ -144,7 +177,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [x] Google News
 - [x] Reddit
 - [x] GitHub Releases
-- [ ] RSS / Stack Overflow
+- [x] RSS / Stack Overflow
 
 ### v0.3 — More detectors
 - [ ] Ruptures (change-point)

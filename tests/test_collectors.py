@@ -8,13 +8,17 @@ from whytrend.collectors import (
     GitHubReleasesCollector,
     GoogleNewsCollector,
     HackerNewsCollector,
+    RSSFeedCollector,
     RedditCollector,
+    StackOverflowCollector,
     WikipediaCollector,
 )
 from whytrend.core import AnomalyType, Event
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 GOOGLE_NEWS_SAMPLE_RSS = (FIXTURES_DIR / "google_news_sample.xml").read_text(encoding="utf-8")
+RSS_SAMPLE = (FIXTURES_DIR / "rss_sample.xml").read_text(encoding="utf-8")
+ATOM_SAMPLE = (FIXTURES_DIR / "atom_sample.xml").read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -472,6 +476,128 @@ async def test_github_releases_collector_returns_empty_for_invalid_payload(
 
 
 @pytest.mark.asyncio
+async def test_stack_overflow_collector_parses_questions(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "api.stackexchange.com"
+        assert request.url.path.endswith("/search/advanced")
+        assert request.url.params["q"] == "Python"
+        assert request.url.params["site"] == "stackoverflow"
+        assert "fromdate" in request.url.params
+        assert "todate" in request.url.params
+        assert request.url.params["key"] == "test-key"
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "question_id": 42,
+                        "title": "Why does Python 3.13 spike memory?",
+                        "link": "https://stackoverflow.com/questions/42",
+                        "body": "<p>Seeing high RSS after upgrade.</p>",
+                        "tags": ["python", "memory"],
+                        "score": 17,
+                        "creation_date": 1767480000,
+                    }
+                ]
+            },
+        )
+
+    collector = StackOverflowCollector(
+        api_key="test-key",
+        client=_mock_transport(handler),
+    )
+    evidences = await collector.collect(sample_event)
+
+    assert collector.name == "stack_overflow"
+    assert len(evidences) == 1
+    assert evidences[0].title == "Why does Python 3.13 spike memory?"
+    assert evidences[0].source_name == "stack_overflow"
+    assert evidences[0].url == "https://stackoverflow.com/questions/42"
+    assert "high RSS" in evidences[0].snippet
+    assert evidences[0].metadata["tags"] == ["python", "memory"]
+    assert evidences[0].metadata["question_id"] == 42
+
+
+@pytest.mark.asyncio
+async def test_stack_overflow_collector_returns_empty_on_api_error(
+    sample_event: Event,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"error_id": 502, "error_message": "throttle"})
+
+    collector = StackOverflowCollector(client=_mock_transport(handler))
+    assert await collector.collect(sample_event) == []
+
+
+@pytest.mark.asyncio
+async def test_stack_overflow_collector_returns_empty_for_invalid_payload(
+    sample_event: Event,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"items": "nope"})
+
+    collector = StackOverflowCollector(client=_mock_transport(handler))
+    assert await collector.collect(sample_event) == []
+
+
+@pytest.mark.asyncio
+async def test_rss_feed_collector_filters_keyword_and_window(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://example.com/feed.xml"
+        return httpx.Response(200, text=RSS_SAMPLE)
+
+    collector = RSSFeedCollector(
+        "https://example.com/feed.xml",
+        client=_mock_transport(handler),
+    )
+    evidences = await collector.collect(sample_event)
+
+    assert collector.name == "rss"
+    assert len(evidences) == 1
+    assert evidences[0].title == "Python 3.13 release notes"
+    assert evidences[0].source_name == "rss"
+    assert evidences[0].snippet == "Major release drives search interest."
+    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=timezone.utc)
+    assert evidences[0].metadata["feed_url"] == "https://example.com/feed.xml"
+
+
+@pytest.mark.asyncio
+async def test_rss_feed_collector_parses_atom_and_multiple_feeds(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url).endswith("rss.xml"):
+            return httpx.Response(200, text=RSS_SAMPLE)
+        return httpx.Response(200, text=ATOM_SAMPLE)
+
+    collector = RSSFeedCollector(
+        ["https://example.com/rss.xml", "https://example.com/atom.xml"],
+        max_results=10,
+        client=_mock_transport(handler),
+    )
+    evidences = await collector.collect(sample_event)
+
+    titles = {item.title for item in evidences}
+    assert "Python 3.13 release notes" in titles
+    assert "Python packaging updates" in titles
+    assert "Rust async runtime tips" not in titles
+    assert "Go generics deep dive" not in titles
+
+
+@pytest.mark.asyncio
+async def test_rss_feed_collector_skips_failed_feeds(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url).endswith("bad.xml"):
+            return httpx.Response(500, text="error")
+        return httpx.Response(200, text=RSS_SAMPLE)
+
+    collector = RSSFeedCollector(
+        ["https://example.com/bad.xml", "https://example.com/ok.xml"],
+        client=_mock_transport(handler),
+    )
+    evidences = await collector.collect(sample_event)
+    assert len(evidences) == 1
+
+
+@pytest.mark.asyncio
 async def test_collectors_return_empty_list_for_invalid_payload(sample_event: Event) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"unexpected": True})
@@ -523,3 +649,15 @@ def test_collector_validation() -> None:
 
     with pytest.raises(ValueError, match="owner/name"):
         GitHubReleasesCollector(repos=["cpython"])
+
+    with pytest.raises(ValueError, match="max_results must be >= 1"):
+        StackOverflowCollector(max_results=0)
+
+    with pytest.raises(ValueError, match="site cannot be empty"):
+        StackOverflowCollector(site="  ")
+
+    with pytest.raises(ValueError, match="max_results must be >= 1"):
+        RSSFeedCollector("https://example.com/feed.xml", max_results=0)
+
+    with pytest.raises(ValueError, match="feed_urls cannot be empty"):
+        RSSFeedCollector(["  "])
