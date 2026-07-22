@@ -16,7 +16,7 @@ from whytrend.rankers import BM25Ranker, EmbeddingRanker
 from whytrend.report import JSONRenderer, MarkdownRenderer
 from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSource
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Alexander Provatorov"
 
 __all__ = [
