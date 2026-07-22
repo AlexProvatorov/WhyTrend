@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Atom Feed</title>
+  <entry>
+    <title>Python packaging updates</title>
+    <link href="https://example.com/python-packaging" rel="alternate"/>
+    <published>2026-01-04T10:00:00Z</published>
+    <summary>Notes about Python packaging tools.</summary>
+  </entry>
+  <entry>
+    <title>Go generics deep dive</title>
+    <link href="https://example.com/go-generics" rel="alternate"/>
+    <updated>2026-01-04T11:00:00Z</updated>
+    <summary>Unrelated language topic.</summary>
+  </entry>
+</feed>

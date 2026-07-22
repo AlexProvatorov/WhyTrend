@@ -29,7 +29,7 @@ class MockLLMProvider(BaseLLMProvider):
             confidence=clamp_score(max(top.relevance_score, event.detection_score)),
             summary=(
                 f"{self._summary_prefix}: interest in '{event.keyword}' "
-                f"spiked due to \"{top.title}\"."
+                f'spiked due to "{top.title}".'
             ),
             causes=[
                 Cause(

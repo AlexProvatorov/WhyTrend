@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>Python 3.13 tops developer headlines</title>
+      <link>https://example.com/python-headlines</link>
+      <pubDate>Sat, 03 Jan 2026 12:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Major release drives search interest.</p>]]></description>
+      <source>Example News</source>
+    </item>
+    <item>
+      <title>Old Python story</title>
+      <link>https://example.com/old-python-story</link>
+      <pubDate>Mon, 15 Dec 2025 12:00:00 GMT</pubDate>
+      <description>Outside the event window.</description>
+    </item>
+  </channel>
+</rss>

@@ -66,7 +66,7 @@ def fallback_explanation(event: Event, evidences: list[Evidence]) -> Explanation
         confidence=clamp_score(max(top.relevance_score, event.detection_score * 0.5)),
         summary=(
             f"The {event.anomaly_type.value} in '{event.keyword}' may be related to "
-            f"\"{top.title}\" from {top.source_name}."
+            f'"{top.title}" from {top.source_name}.'
         ),
         causes=[
             Cause(

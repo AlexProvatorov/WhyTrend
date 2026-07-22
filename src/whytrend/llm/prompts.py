@@ -31,7 +31,9 @@ def build_user_prompt(event: Event, evidences: list[Evidence]) -> str:
             )
         )
 
-    evidence_block = "\n\n".join(evidence_lines) if evidence_lines else "No external evidence was collected."
+    evidence_block = (
+        "\n\n".join(evidence_lines) if evidence_lines else "No external evidence was collected."
+    )
 
     payload = {
         "event": {

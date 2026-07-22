@@ -1,7 +1,6 @@
 # WhyTrend
 
 [![CI](https://github.com/AlexProvatorov/WhyTrend/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexProvatorov/WhyTrend/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/whytrend.svg)](https://pypi.org/project/whytrend/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 
@@ -21,30 +20,22 @@ If this project is useful to you, consider giving it a **star** on GitHub — it
 
 ## Installation
 
-### From PyPI
-
-```bash
-pip install whytrend
-```
-
-### Optional extras
-
-```bash
-pip install "whytrend[openai]"      # OpenAI API
-pip install "whytrend[trends]"      # Google Trends
-pip install "whytrend[prophet]"     # Prophet detector
-pip install "whytrend[ranking]"     # Embedding ranker
-pip install "whytrend[all]"           # everything
-```
-
-### From source (development)
-
 ```bash
 git clone https://github.com/AlexProvatorov/WhyTrend.git
 cd WhyTrend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+```
+
+### Optional extras
+
+```bash
+pip install -e ".[openai]"      # OpenAI API
+pip install -e ".[trends]"      # Google Trends
+pip install -e ".[prophet]"       # Prophet detector
+pip install -e ".[ranking]"       # Embedding ranker
+pip install -e ".[all]"           # everything
 ```
 
 ## Quickstart (CSV, no API keys)
@@ -61,7 +52,7 @@ from whytrend import (
 
 pipeline = (
     Pipeline(window_days=3)
-    .add_source(CSVSource("your_series.csv", keyword="Python"))
+    .add_source(CSVSource("tests/fixtures/python_interest.csv", keyword="Python"))
     .add_detector(ZScoreDetector(threshold=1.0))
     .add_ranker(BM25Ranker(top_k=5))
     .add_explainer(LLMExplainer(MockLLMProvider()))
@@ -72,14 +63,9 @@ print(report.executive_summary)
 print(report.to_markdown())
 ```
 
-CSV must have `timestamp` and `value` columns. When developing from a clone, you can use
-`tests/fixtures/python_interest.csv` as sample data.
-
-Run the full demo (requires a repository clone):
+Run the full demo:
 
 ```bash
-git clone https://github.com/AlexProvatorov/WhyTrend.git
-cd WhyTrend
 pip install -e ".[dev]"
 python examples/mvp_demo.py
 ```
@@ -93,14 +79,34 @@ from whytrend import (
     Pipeline,
     ProphetDetector,
 )
-from whytrend.collectors import HackerNewsCollector, WikipediaCollector
+from whytrend.collectors import (
+    GitHubReleasesCollector,
+    GoogleNewsCollector,
+    HackerNewsCollector,
+    RSSFeedCollector,
+    RedditCollector,
+    StackOverflowCollector,
+    WikipediaCollector,
+)
 from whytrend.rankers import BM25Ranker
 
 pipeline = (
     Pipeline()
     .add_source(GoogleTrends("Python"))
     .add_detector(ProphetDetector())
+    .add_collector(GoogleNewsCollector())
     .add_collector(HackerNewsCollector())
+    .add_collector(RedditCollector())  # REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET
+    .add_collector(GitHubReleasesCollector())  # optional GITHUB_TOKEN
+    .add_collector(StackOverflowCollector())  # optional STACKEXCHANGE_KEY
+    .add_collector(
+        RSSFeedCollector(
+            [
+                "https://blog.python.org/feeds/posts/default",
+                "https://pyfound.blogspot.com/feeds/posts/default",
+            ]
+        )
+    )
     .add_collector(WikipediaCollector())
     .add_ranker(BM25Ranker())
     .add_explainer(OpenAIExplainer())  # OPENAI_API_KEY env var or api_key="..."
@@ -112,11 +118,49 @@ print(report.executive_summary)
 
 Use `OllamaExplainer(model="llama3.2")` for a local LLM instead of OpenAI.
 
-For OpenAI, pass a key explicitly or set the environment variable:
+Reddit credentials (create at https://www.reddit.com/prefs/apps):
+
+```bash
+export REDDIT_CLIENT_ID="..."
+export REDDIT_CLIENT_SECRET="..."
+```
+
+Or pass them explicitly:
 
 ```python
-OpenAIExplainer(api_key="sk-...")
-# or: export OPENAI_API_KEY=sk-...
+RedditCollector(client_id="...", client_secret="...", subreddits=["Python", "MachineLearning"])
+```
+
+GitHub Releases works without a token for light use. For higher rate limits:
+
+```bash
+export GITHUB_TOKEN="ghp_..."
+```
+
+```python
+GitHubReleasesCollector(token="ghp_...", repos=["python/cpython"])
+```
+
+Stack Overflow works without a key for light use. For a higher daily quota
+(register at https://stackapps.com/):
+
+```bash
+export STACKEXCHANGE_KEY="..."
+```
+
+```python
+StackOverflowCollector(api_key="...", site="stackoverflow")
+```
+
+Custom RSS/Atom feeds (keyword + time-window filtered):
+
+```python
+RSSFeedCollector(
+    [
+        "https://blog.python.org/feeds/posts/default",
+        "https://hnrss.org/frontpage",
+    ]
+)
 ```
 
 ## Architecture
@@ -130,10 +174,10 @@ Source → Detector → Event Builder → Collectors → Ranker → Explainer �
 Core MVP is in place. Next focus: **integrations and ecosystem**.
 
 ### v0.2 — More collectors
-- [ ] Google News
-- [ ] Reddit
-- [ ] GitHub Releases
-- [ ] RSS / Stack Overflow
+- [x] Google News
+- [x] Reddit
+- [x] GitHub Releases
+- [x] RSS / Stack Overflow
 
 ### v0.3 — More detectors
 - [ ] Ruptures (change-point)
@@ -152,15 +196,30 @@ Track progress in [GitHub Issues](https://github.com/AlexProvatorov/WhyTrend/iss
 
 ## Development
 
-Requires a repository clone:
+```bash
+make install   # install with detected tool (uv / poetry / pip)
+make check     # ruff + format check + mypy + pytest
+```
+
+Supports the three common workflows:
+
+| Tool | Install | Run checks |
+|------|---------|------------|
+| **uv** (default if installed) | `make install` | `make check` |
+| **poetry** | `make install TOOL=poetry` | `make check TOOL=poetry` |
+| **pip** / venv | `make install TOOL=pip` | `make check TOOL=pip` |
+
+Auto-detect order: `uv` → `poetry` → `pip`. Override anytime with `TOOL=...`.
+
+Useful targets:
 
 ```bash
-git clone https://github.com/AlexProvatorov/WhyTrend.git
-cd WhyTrend
-pip install -e ".[dev]"
-ruff check src tests
-mypy src/whytrend
-pytest
+make lint          # ruff check
+make format        # ruff format + autofix
+make format-check  # ruff format --check
+make typecheck     # mypy
+make test          # pytest
+make help          # list all targets
 ```
 
 ## Author

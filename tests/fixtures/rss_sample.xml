@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Blog</title>
+    <item>
+      <title>Python 3.13 release notes</title>
+      <link>https://example.com/python-313</link>
+      <pubDate>Sat, 03 Jan 2026 12:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Major release drives search interest.</p>]]></description>
+    </item>
+    <item>
+      <title>Rust async runtime tips</title>
+      <link>https://example.com/rust-async</link>
+      <pubDate>Sat, 03 Jan 2026 13:00:00 GMT</pubDate>
+      <description>Unrelated to the keyword filter.</description>
+    </item>
+    <item>
+      <title>Old Python story</title>
+      <link>https://example.com/old-python</link>
+      <pubDate>Mon, 15 Dec 2025 12:00:00 GMT</pubDate>
+      <description>Outside the event window.</description>
+    </item>
+  </channel>
+</rss>

@@ -77,8 +77,7 @@ class GoogleTrends(BaseSource):
             frame = frame.drop(columns=["isPartial"])
 
         value_col = self._keyword if self._keyword in frame.columns else frame.columns[0]
-        normalized: pd.DataFrame = (
-            frame.reset_index(names="timestamp")[["timestamp", value_col]]
-            .rename(columns={value_col: "value"})
-        )
+        normalized: pd.DataFrame = frame.reset_index(names="timestamp")[
+            ["timestamp", value_col]
+        ].rename(columns={value_col: "value"})
         return normalized
