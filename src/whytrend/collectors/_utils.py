@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
@@ -10,7 +10,7 @@ from whytrend.core.models import Evidence
 
 
 def unix_to_datetime(timestamp: int) -> datetime:
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+    return datetime.fromtimestamp(timestamp, tz=UTC)
 
 
 def wikipedia_article_url(title: str) -> str:

@@ -1,9 +1,9 @@
 import pytest
 
+from tests.stubs import FailingCollector, StubCollector, StubDetector, StubExplainer, StubSource
 from whytrend.core import AnomalyType
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker
-from tests.stubs import FailingCollector, StubCollector, StubDetector, StubExplainer, StubSource
 
 
 @pytest.mark.asyncio

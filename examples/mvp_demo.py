@@ -13,7 +13,7 @@ from whytrend import (
     Pipeline,
     ZScoreDetector,
 )
-from whytrend.core import Evidence, Event
+from whytrend.core import Event, Evidence
 from whytrend.report import JSONRenderer, MarkdownRenderer
 
 FIXTURE_CSV = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "python_interest.csv"

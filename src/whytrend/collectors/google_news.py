@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import quote_plus
@@ -160,8 +160,8 @@ class GoogleNewsCollector(BaseCollector):
         except (TypeError, ValueError, IndexError):
             return None
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
 
     @staticmethod
     def _in_window(
@@ -178,8 +178,8 @@ class GoogleNewsCollector(BaseCollector):
     @staticmethod
     def _as_utc(moment: datetime) -> datetime:
         if moment.tzinfo is None:
-            return moment.replace(tzinfo=timezone.utc)
-        return moment.astimezone(timezone.utc)
+            return moment.replace(tzinfo=UTC)
+        return moment.astimezone(UTC)
 
     @staticmethod
     def _clean_snippet(value: str) -> str:

@@ -1,16 +1,16 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
+from tests.stubs import StubCollector, StubExplainer
 from whytrend.core import AnomalyType
 from whytrend.core.series import TimeSeries
 from whytrend.detectors import ProphetDetector, RupturesDetector, ZScoreDetector
 from whytrend.events import EventBuilder
 from whytrend.pipeline import Pipeline
 from whytrend.sources import PandasSource
-from tests.stubs import StubCollector, StubExplainer
 
 
 def test_zscore_detector_finds_spike(python_interest_series) -> None:
@@ -28,8 +28,8 @@ def test_zscore_detector_finds_spike(python_interest_series) -> None:
 
 def test_zscore_detector_returns_empty_for_short_series(python_interest_series) -> None:
     short_series = python_interest_series.window(
-        datetime(2026, 1, 1, tzinfo=timezone.utc),
-        datetime(2026, 1, 3, tzinfo=timezone.utc),
+        datetime(2026, 1, 1, tzinfo=UTC),
+        datetime(2026, 1, 3, tzinfo=UTC),
     )
 
     result = ZScoreDetector(min_points=5).detect(short_series)
@@ -82,8 +82,8 @@ def test_ruptures_detector_emits_changepoints(python_interest_series) -> None:
 
 def test_ruptures_detector_returns_empty_for_short_series(python_interest_series) -> None:
     short_series = python_interest_series.window(
-        datetime(2026, 1, 1, tzinfo=timezone.utc),
-        datetime(2026, 1, 3, tzinfo=timezone.utc),
+        datetime(2026, 1, 1, tzinfo=UTC),
+        datetime(2026, 1, 3, tzinfo=UTC),
     )
 
     result = RupturesDetector(min_points=5).detect(short_series)

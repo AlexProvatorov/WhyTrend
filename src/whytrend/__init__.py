@@ -4,8 +4,8 @@ from whytrend.collectors import (
     GitHubReleasesCollector,
     GoogleNewsCollector,
     HackerNewsCollector,
-    RSSFeedCollector,
     RedditCollector,
+    RSSFeedCollector,
     StackOverflowCollector,
     WikipediaCollector,
 )

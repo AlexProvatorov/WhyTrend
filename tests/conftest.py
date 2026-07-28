@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import pytest
 
+from tests.stubs import StubCollector, StubDetector, StubExplainer, StubSource
 from whytrend.core import AnomalyType, Detection, Evidence, TimeSeries
 from whytrend.pipeline import Pipeline
-from tests.stubs import StubCollector, StubDetector, StubExplainer, StubSource
 
-UTC = timezone.utc
 PYTHON_KEYWORD = "Python"
 PYTHON_SERIES_NAME = "python_interest"
 SPIKE_VALUES = [120.0, 123.0, 121.0, 610.0, 640.0]

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -8,8 +8,8 @@ from whytrend.collectors import (
     GitHubReleasesCollector,
     GoogleNewsCollector,
     HackerNewsCollector,
-    RSSFeedCollector,
     RedditCollector,
+    RSSFeedCollector,
     StackOverflowCollector,
     WikipediaCollector,
 )
@@ -25,9 +25,9 @@ ATOM_SAMPLE = (FIXTURES_DIR / "atom_sample.xml").read_text(encoding="utf-8")
 def sample_event() -> Event:
     return Event(
         anomaly_type=AnomalyType.SPIKE,
-        timestamp=datetime(2026, 1, 4, tzinfo=timezone.utc),
-        window_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        window_end=datetime(2026, 1, 7, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 1, 4, tzinfo=UTC),
+        window_start=datetime(2026, 1, 1, tzinfo=UTC),
+        window_end=datetime(2026, 1, 7, tzinfo=UTC),
         keyword="Python",
         series_name="python_interest",
         value=610.0,
@@ -54,7 +54,7 @@ async def test_google_news_collector_parses_rss(sample_event: Event) -> None:
     assert evidences[0].source_name == "google_news"
     assert evidences[0].url == "https://example.com/python-headlines"
     assert evidences[0].snippet == "Major release drives search interest."
-    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=timezone.utc)
+    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=UTC)
     assert evidences[0].metadata["publisher"] == "Example News"
 
 
@@ -374,7 +374,7 @@ async def test_github_releases_collector_parses_releases(sample_event: Event) ->
     assert evidences[0].source_name == "github_releases"
     assert evidences[0].url == "https://github.com/python/cpython/releases/tag/v3.13.0"
     assert evidences[0].snippet.startswith("Major release")
-    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=timezone.utc)
+    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=UTC)
     assert evidences[0].metadata["repo"] == "python/cpython"
     assert evidences[0].metadata["tag_name"] == "v3.13.0"
 
@@ -557,7 +557,7 @@ async def test_rss_feed_collector_filters_keyword_and_window(sample_event: Event
     assert evidences[0].title == "Python 3.13 release notes"
     assert evidences[0].source_name == "rss"
     assert evidences[0].snippet == "Major release drives search interest."
-    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=timezone.utc)
+    assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=UTC)
     assert evidences[0].metadata["feed_url"] == "https://example.com/feed.xml"
 
 

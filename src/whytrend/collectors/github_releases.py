@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -225,7 +225,7 @@ class GitHubReleasesCollector(BaseCollector):
         if not html_url:
             return None
 
-        haystack = " ".join([repo_full_name, tag_name, name, body]).casefold()
+        haystack = f"{repo_full_name} {tag_name} {name} {body}".casefold()
         if keyword_lower and keyword_lower not in haystack:
             return None
 
@@ -261,8 +261,8 @@ class GitHubReleasesCollector(BaseCollector):
         except ValueError:
             return None
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
 
     @staticmethod
     def _in_window(
@@ -279,5 +279,5 @@ class GitHubReleasesCollector(BaseCollector):
     @staticmethod
     def _as_utc(moment: datetime) -> datetime:
         if moment.tzinfo is None:
-            return moment.replace(tzinfo=timezone.utc)
-        return moment.astimezone(timezone.utc)
+            return moment.replace(tzinfo=UTC)
+        return moment.astimezone(UTC)

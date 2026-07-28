@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -27,7 +27,7 @@ def _sample_report() -> Report:
         explanations=[explanation],
         series_name="python_interest",
         keyword="Python",
-        generated_at=datetime(2026, 1, 4, 12, 0, tzinfo=timezone.utc),
+        generated_at=datetime(2026, 1, 4, 12, 0, tzinfo=UTC),
         metadata={"detector": "zscore", "source": "csv"},
     )
 
