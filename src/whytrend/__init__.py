@@ -9,7 +9,7 @@ from whytrend.collectors import (
     StackOverflowCollector,
     WikipediaCollector,
 )
-from whytrend.detectors import ProphetDetector, ZScoreDetector
+from whytrend.detectors import ProphetDetector, RupturesDetector, ZScoreDetector
 from whytrend.explainers import LLMExplainer, MockLLMProvider, OllamaExplainer, OpenAIExplainer
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker, EmbeddingRanker
@@ -39,6 +39,7 @@ __all__ = [
     "ProphetDetector",
     "RSSFeedCollector",
     "RedditCollector",
+    "RupturesDetector",
     "StackOverflowCollector",
     "WikipediaCollector",
     "ZScoreDetector",

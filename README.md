@@ -34,6 +34,7 @@ pip install -e ".[dev]"
 pip install -e ".[openai]"      # OpenAI API
 pip install -e ".[trends]"      # Google Trends
 pip install -e ".[prophet]"       # Prophet detector
+pip install -e ".[ruptures]"      # change-point detector
 pip install -e ".[ranking]"       # Embedding ranker
 pip install -e ".[all]"           # everything
 ```
@@ -169,6 +170,20 @@ RSSFeedCollector(
 Source → Detector → Event Builder → Collectors → Ranker → Explainer → Report
 ```
 
+### Choosing a detector
+
+| Detector | Best for | Notes |
+|----------|----------|-------|
+| **ZScoreDetector** | Sudden spikes/drops vs the series mean | Fast, no extra deps |
+| **ProphetDetector** | Points outside a forecast band (trend + seasonality) | Needs `whytrend[prophet]` |
+| **RupturesDetector** | Structural breaks / regime changes | Needs `whytrend[ruptures]`; emits `changepoint` |
+
+```python
+from whytrend import RupturesDetector
+
+RupturesDetector(algorithm="pelt", model="rbf", penalty=10.0)
+```
+
 ## Roadmap
 
 Core MVP is in place. Next focus: **integrations and ecosystem**.
@@ -180,7 +195,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [x] RSS / Stack Overflow
 
 ### v0.3 — More detectors
-- [ ] Ruptures (change-point)
+- [x] Ruptures (change-point)
 - [ ] River / streaming detectors
 
 ### v0.4 — More LLM providers
