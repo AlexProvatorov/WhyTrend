@@ -207,6 +207,10 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [ ] CLI (`whytrend analyze ...`)
 - [ ] Plugin registry (entry points)
 
+### v0.6 — Ranking quality
+- [ ] Hybrid ranker (BM25 + embeddings merged with RRF)
+- [ ] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
+
 Track progress in [GitHub Issues](https://github.com/AlexProvatorov/WhyTrend/issues).
 
 ## Development
