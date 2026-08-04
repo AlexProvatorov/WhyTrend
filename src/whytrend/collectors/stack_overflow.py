@@ -73,7 +73,7 @@ class StackOverflowCollector(BaseCollector):
                     f"{STACKEXCHANGE_API_BASE}/search/advanced",
                     params=params,
                 )
-                if response.status_code in {400, 403, 429}:
+                if response.is_error:
                     return []
                 response.raise_for_status()
                 payload = response.json()

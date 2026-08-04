@@ -132,14 +132,10 @@ class TimeSeries:
         """Return a slice of the series between ``start`` and ``end`` (inclusive)."""
         start_ts = pd.Timestamp(start)
         end_ts = pd.Timestamp(end)
-        if start_ts.tzinfo is None:
-            start_ts = start_ts.tz_localize("UTC")
-        else:
-            start_ts = start_ts.tz_convert("UTC")
-        if end_ts.tzinfo is None:
-            end_ts = end_ts.tz_localize("UTC")
-        else:
-            end_ts = end_ts.tz_convert("UTC")
+        start_ts = (
+            start_ts.tz_localize("UTC") if start_ts.tzinfo is None else start_ts.tz_convert("UTC")
+        )
+        end_ts = end_ts.tz_localize("UTC") if end_ts.tzinfo is None else end_ts.tz_convert("UTC")
 
         sliced = self.data.loc[start_ts:end_ts]
 

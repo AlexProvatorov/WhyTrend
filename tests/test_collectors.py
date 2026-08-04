@@ -81,6 +81,32 @@ async def test_google_news_collector_returns_empty_for_invalid_xml(sample_event:
 
 
 @pytest.mark.asyncio
+async def test_google_news_collector_returns_empty_on_http_error(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, text="unavailable")
+
+    collector = GoogleNewsCollector(client=_mock_transport(handler))
+    assert await collector.collect(sample_event) == []
+
+
+@pytest.mark.asyncio
+async def test_google_news_collector_drops_items_without_pub_date(sample_event: Event) -> None:
+    payload = """<?xml version="1.0"?><rss><channel>
+      <item>
+        <title>Python undated</title>
+        <link>https://example.com/undated</link>
+        <description>No pubDate here.</description>
+      </item>
+    </channel></rss>"""
+    evidences = GoogleNewsCollector()._parse_rss(
+        payload,
+        window_start=sample_event.window_start,
+        window_end=sample_event.window_end,
+    )
+    assert evidences == []
+
+
+@pytest.mark.asyncio
 async def test_hacker_news_collector_parses_hits(sample_event: Event) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.host == "hn.algolia.com"
@@ -289,7 +315,7 @@ async def test_reddit_collector_searches_subreddit_allowlist(sample_event: Event
                         {
                             "kind": "t3",
                             "data": {
-                                "id": "xyz",
+                                "id": request.url.path.split("/")[2].lower(),
                                 "title": f"Post in {request.url.path}",
                                 "permalink": f"{request.url.path}/comments/xyz/post/",
                                 "subreddit": request.url.path.split("/")[2],
@@ -312,6 +338,68 @@ async def test_reddit_collector_searches_subreddit_allowlist(sample_event: Event
 
     assert seen_paths == ["/r/Python/search", "/r/MachineLearning/search"]
     assert len(evidences) == 2
+
+
+@pytest.mark.asyncio
+async def test_reddit_collector_dedupes_across_subreddits(sample_event: Event) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "www.reddit.com":
+            return httpx.Response(
+                200,
+                json={"access_token": "token", "token_type": "bearer", "expires_in": 3600},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "children": [
+                        {
+                            "kind": "t3",
+                            "data": {
+                                "id": "shared",
+                                "title": "Shared Python post",
+                                "permalink": "/r/Python/comments/shared/post/",
+                                "subreddit": request.url.path.split("/")[2],
+                                "created_utc": 1767480000,
+                            },
+                        }
+                    ]
+                }
+            },
+        )
+
+    collector = RedditCollector(
+        client_id="id",
+        client_secret="secret",
+        subreddits=["Python", "learnpython"],
+        client=_mock_transport(handler),
+    )
+    evidences = await collector.collect(sample_event)
+    assert len(evidences) == 1
+
+
+@pytest.mark.asyncio
+async def test_reddit_collector_caches_oauth_token(sample_event: Event) -> None:
+    token_posts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal token_posts
+        if request.url.host == "www.reddit.com":
+            token_posts += 1
+            return httpx.Response(
+                200,
+                json={"access_token": "cached-token", "token_type": "bearer", "expires_in": 3600},
+            )
+        return httpx.Response(200, json={"data": {"children": []}})
+
+    collector = RedditCollector(
+        client_id="id",
+        client_secret="secret",
+        client=_mock_transport(handler),
+    )
+    await collector.collect(sample_event)
+    await collector.collect(sample_event)
+    assert token_posts == 1
 
 
 @pytest.mark.asyncio
@@ -428,7 +516,11 @@ async def test_github_releases_collector_uses_repo_allowlist(sample_event: Event
                     "tag_name": "v1.2.3",
                     "name": "Python tooling release",
                     "body": "Release notes",
-                    "html_url": f"https://github.com{request.url.path.replace('/releases', '')}/releases/tag/v1.2.3",
+                    "html_url": (
+                        f"https://github.com"
+                        f"{request.url.path.replace('/releases', '')}"
+                        f"/releases/tag/v1.2.3"
+                    ),
                     "published_at": "2026-01-02T00:00:00Z",
                 }
             ],
@@ -446,6 +538,71 @@ async def test_github_releases_collector_uses_repo_allowlist(sample_event: Event
         "/repos/acme/python-cli/releases",
     ]
     assert len(evidences) == 2
+
+
+@pytest.mark.asyncio
+async def test_github_releases_collector_skips_repo_server_errors(
+    sample_event: Event,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/acme/broken/releases"):
+            return httpx.Response(500, json={"message": "boom"})
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": 1,
+                    "tag_name": "v1.0.0",
+                    "name": "Python release",
+                    "body": "Python notes",
+                    "html_url": "https://github.com/acme/ok/releases/tag/v1.0.0",
+                    "published_at": "2026-01-03T12:00:00Z",
+                }
+            ],
+        )
+
+    collector = GitHubReleasesCollector(
+        repos=["acme/broken", "acme/ok"],
+        client=_mock_transport(handler),
+    )
+    evidences = await collector.collect(sample_event)
+
+    assert len(evidences) == 1
+    assert evidences[0].metadata["repo"] == "acme/ok"
+
+
+@pytest.mark.asyncio
+async def test_github_releases_collector_uses_word_boundary_keyword(
+    sample_event: Event,
+) -> None:
+    evidences = GitHubReleasesCollector()._parse_releases(
+        [
+            {
+                "id": 1,
+                "tag_name": "v1",
+                "name": "Said nothing useful",
+                "body": "rain and said",
+                "html_url": "https://github.com/acme/x/releases/tag/v1",
+                "published_at": "2026-01-03T12:00:00Z",
+                "_repo_full_name": "acme/x",
+            },
+            {
+                "id": 2,
+                "tag_name": "v2",
+                "name": "AI toolkit",
+                "body": "release notes",
+                "html_url": "https://github.com/acme/ai/releases/tag/v2",
+                "published_at": "2026-01-03T12:00:00Z",
+                "_repo_full_name": "acme/ai",
+            },
+        ],
+        keyword="AI",
+        window_start=sample_event.window_start,
+        window_end=sample_event.window_end,
+    )
+
+    assert len(evidences) == 1
+    assert evidences[0].title == "AI toolkit"
 
 
 @pytest.mark.asyncio
@@ -595,6 +752,42 @@ async def test_rss_feed_collector_skips_failed_feeds(sample_event: Event) -> Non
     )
     evidences = await collector.collect(sample_event)
     assert len(evidences) == 1
+
+
+@pytest.mark.asyncio
+async def test_rss_feed_collector_drops_undated_and_substring_noise(
+    sample_event: Event,
+) -> None:
+    payload = """<?xml version="1.0"?><rss><channel>
+      <item>
+        <title>Said it rains today</title>
+        <link>https://example.com/said</link>
+            <description>Nothing relevant</description>
+        <pubDate>Sat, 03 Jan 2026 12:00:00 GMT</pubDate>
+      </item>
+      <item>
+        <title>AI tools roundup</title>
+        <link>https://example.com/ai</link>
+        <description>Useful notes</description>
+        <pubDate>Sat, 03 Jan 2026 12:00:00 GMT</pubDate>
+      </item>
+      <item>
+        <title>AI undated</title>
+        <link>https://example.com/undated</link>
+        <description>Missing date</description>
+      </item>
+    </channel></rss>"""
+
+    evidences = RSSFeedCollector(["https://example.com/feed.xml"])._parse_feed(
+        payload,
+        feed_url="https://example.com/feed.xml",
+        keyword="AI",
+        window_start=sample_event.window_start,
+        window_end=sample_event.window_end,
+    )
+
+    assert len(evidences) == 1
+    assert evidences[0].title == "AI tools roundup"
 
 
 @pytest.mark.asyncio

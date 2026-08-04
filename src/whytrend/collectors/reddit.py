@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 import os
+import time
 from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
-from whytrend.collectors._http import get_http_client
+from whytrend.collectors._http import DEFAULT_USER_AGENT, get_http_client
 from whytrend.collectors._utils import evidence_from_fields, unix_to_datetime
 from whytrend.core.models import Event, Evidence
 from whytrend.core.protocols import BaseCollector
 
 REDDIT_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 REDDIT_OAUTH_BASE = "https://oauth.reddit.com"
-DEFAULT_USER_AGENT = "whytrend/0.1.0 (https://github.com/AlexProvatorov/WhyTrend)"
 
 
 class RedditCollector(BaseCollector):
@@ -62,6 +62,7 @@ class RedditCollector(BaseCollector):
         self._subreddits = cleaned_subreddits
         self._user_agent = user_agent.strip()
         self._client = client
+        self._token_expires_at: float | None = None
 
     @property
     def name(self) -> str:
@@ -79,7 +80,9 @@ class RedditCollector(BaseCollector):
         )
 
     async def _resolve_access_token(self, client: httpx.AsyncClient) -> str:
-        if self._access_token is not None:
+        if self._access_token is not None and (
+            self._token_expires_at is None or time.monotonic() < self._token_expires_at
+        ):
             return self._access_token
 
         if not self._client_id or not self._client_secret:
@@ -105,6 +108,14 @@ class RedditCollector(BaseCollector):
         if not token:
             msg = "Reddit token endpoint did not return access_token"
             raise ValueError(msg)
+
+        self._access_token = token
+        expires_in = payload.get("expires_in")
+        if isinstance(expires_in, (int, float)) and expires_in > 0:
+            # Refresh a bit early to avoid racing the exact expiry.
+            self._token_expires_at = time.monotonic() + float(expires_in) - 30.0
+        else:
+            self._token_expires_at = None
         return token
 
     async def _search(
@@ -119,7 +130,7 @@ class RedditCollector(BaseCollector):
             "User-Agent": self._user_agent,
         }
         # Fetch extra rows so time-window filtering can still fill max_results.
-        limit = min(100, max(self._max_results * 3, self._max_results))
+        limit = min(100, self._max_results * 3)
 
         if not self._subreddits:
             payload = await self._get_search(
@@ -137,6 +148,7 @@ class RedditCollector(BaseCollector):
             return self._children_from_payload(payload)
 
         children: list[Any] = []
+        seen_ids: set[str] = set()
         for subreddit in self._subreddits:
             payload = await self._get_search(
                 client,
@@ -150,7 +162,18 @@ class RedditCollector(BaseCollector):
                     "raw_json": 1,
                 },
             )
-            children.extend(self._children_from_payload(payload))
+            for child in self._children_from_payload(payload):
+                if not isinstance(child, dict):
+                    continue
+                data = child.get("data")
+                post_id = ""
+                if isinstance(data, dict):
+                    post_id = str(data.get("id") or "").strip()
+                if post_id:
+                    if post_id in seen_ids:
+                        continue
+                    seen_ids.add(post_id)
+                children.append(child)
         return children
 
     @staticmethod
@@ -226,7 +249,7 @@ class RedditCollector(BaseCollector):
             except (TypeError, ValueError):
                 published_at = None
 
-        if published_at is not None and not self._in_window(
+        if published_at is None or not self._in_window(
             published_at,
             window_start=window_start,
             window_end=window_end,

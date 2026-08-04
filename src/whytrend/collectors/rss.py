@@ -10,7 +10,7 @@ from xml.etree import ElementTree
 import httpx
 
 from whytrend.collectors._http import get_http_client
-from whytrend.collectors._utils import evidence_from_fields
+from whytrend.collectors._utils import evidence_from_fields, keyword_matches
 from whytrend.core.models import Event, Evidence
 from whytrend.core.protocols import BaseCollector
 
@@ -22,6 +22,7 @@ class RSSFeedCollector(BaseCollector):
     """Fetch and filter entries from one or more RSS/Atom feeds.
 
     Filters by ``event.keyword`` (title/summary) and the event time window.
+    Items without a parseable publication date are dropped.
     Uses the standard library XML parser — no extra dependencies.
     """
 
@@ -37,10 +38,7 @@ class RSSFeedCollector(BaseCollector):
             msg = "max_results must be >= 1"
             raise ValueError(msg)
 
-        if isinstance(feed_urls, str):
-            urls = [feed_urls]
-        else:
-            urls = list(feed_urls)
+        urls = [feed_urls] if isinstance(feed_urls, str) else list(feed_urls)
 
         cleaned = [url.strip() for url in urls if url.strip()]
         if not cleaned:
@@ -67,7 +65,7 @@ class RSSFeedCollector(BaseCollector):
             for feed_url in self._feed_urls:
                 try:
                     response = await client.get(feed_url)
-                    if response.status_code >= 400:
+                    if response.is_error:
                         continue
                     parsed = self._parse_feed(
                         response.text,
@@ -227,11 +225,11 @@ class RSSFeedCollector(BaseCollector):
         if not title or not url:
             return None
 
-        haystack = f"{title} {snippet}".casefold()
-        if keyword_lower and keyword_lower not in haystack:
+        haystack = f"{title} {snippet}"
+        if keyword_lower and not keyword_matches(haystack, keyword_lower):
             return None
 
-        if published_at is not None and not self._in_window(
+        if published_at is None or not self._in_window(
             published_at,
             window_start=window_start,
             window_end=window_end,

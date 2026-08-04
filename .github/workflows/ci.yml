@@ -31,6 +31,9 @@ jobs:
       - name: Ruff
         run: ruff check src tests examples
 
+      - name: Ruff format
+        run: ruff format --check src tests examples
+
       - name: Mypy
         run: mypy src/whytrend
 

@@ -8,13 +8,12 @@ from typing import Any
 
 import httpx
 
-from whytrend.collectors._http import get_http_client
-from whytrend.collectors._utils import evidence_from_fields
+from whytrend.collectors._http import DEFAULT_USER_AGENT, get_http_client
+from whytrend.collectors._utils import evidence_from_fields, keyword_matches
 from whytrend.core.models import Event, Evidence
 from whytrend.core.protocols import BaseCollector
 
 GITHUB_API_BASE = "https://api.github.com"
-DEFAULT_USER_AGENT = "whytrend/0.1.0 (https://github.com/AlexProvatorov/WhyTrend)"
 
 
 class GitHubReleasesCollector(BaseCollector):
@@ -74,10 +73,8 @@ class GitHubReleasesCollector(BaseCollector):
             try:
                 repo_full_names = await self._resolve_repos(client, keyword=event.keyword)
                 releases = await self._fetch_releases(client, repo_full_names)
-            except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in {403, 429}:
-                    return []
-                raise
+            except httpx.HTTPError:
+                return []
 
         return self._parse_releases(
             releases,
@@ -127,7 +124,7 @@ class GitHubReleasesCollector(BaseCollector):
                 headers=self._headers(),
                 params={"per_page": per_page},
             )
-            if response.status_code in {403, 404, 429}:
+            if response.is_error:
                 continue
             response.raise_for_status()
             payload = response.json()
@@ -225,8 +222,8 @@ class GitHubReleasesCollector(BaseCollector):
         if not html_url:
             return None
 
-        haystack = f"{repo_full_name} {tag_name} {name} {body}".casefold()
-        if keyword_lower and keyword_lower not in haystack:
+        haystack = f"{repo_full_name} {tag_name} {name} {body}"
+        if keyword_lower and not keyword_matches(haystack, keyword_lower):
             return None
 
         title = name or (f"{repo_full_name} {tag_name}".strip() if tag_name else repo_full_name)
@@ -256,8 +253,7 @@ class GitHubReleasesCollector(BaseCollector):
         if not value:
             return None
         try:
-            normalized = value.replace("Z", "+00:00")
-            parsed = datetime.fromisoformat(normalized)
+            parsed = datetime.fromisoformat(value)
         except ValueError:
             return None
         if parsed.tzinfo is None:

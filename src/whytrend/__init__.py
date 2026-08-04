@@ -1,5 +1,6 @@
 """WhyTrend — Explainable Time Series Analysis Framework."""
 
+from whytrend._version import __version__
 from whytrend.collectors import (
     GitHubReleasesCollector,
     GoogleNewsCollector,
@@ -16,7 +17,6 @@ from whytrend.rankers import BM25Ranker, EmbeddingRanker
 from whytrend.report import JSONRenderer, MarkdownRenderer
 from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSource
 
-__version__ = "0.2.0"
 __author__ = "Alexander Provatorov"
 
 __all__ = [

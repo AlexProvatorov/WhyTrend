@@ -9,6 +9,7 @@ from whytrend.core.models import Event, Evidence, Explanation, Report
 from whytrend.core.protocols import Collector, Detector, Explainer, Ranker, Source
 from whytrend.core.series import TimeSeries
 from whytrend.events.builder import EventBuilder
+from whytrend.llm._parsing import fallback_explanation
 
 
 class Pipeline:
@@ -94,7 +95,18 @@ class Pipeline:
         evidences = await self._collect_evidences(event)
         if self._ranker is not None:
             evidences = self._ranker.rank(event, evidences)
-        return await explainer.explain(event, evidences)
+        try:
+            return await explainer.explain(event, evidences)
+        except Exception as exc:
+            explanation = fallback_explanation(event, evidences)
+            return explanation.model_copy(
+                update={
+                    "metadata": {
+                        **explanation.metadata,
+                        "explainer_error": type(exc).__name__,
+                    }
+                }
+            )
 
     async def _collect_evidences(self, event: Event) -> list[Evidence]:
         if not self._collectors:

@@ -21,7 +21,11 @@ _HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
 class GoogleNewsCollector(BaseCollector):
-    """Search Google News articles related to the event keyword."""
+    """Search Google News articles related to the event keyword.
+
+    Items without a parseable publication date are dropped so they cannot
+    bypass the event time window.
+    """
 
     def __init__(
         self,
@@ -72,9 +76,12 @@ class GoogleNewsCollector(BaseCollector):
     async def collect(self, event: Event) -> list[Evidence]:
         url = self.rss_url(event.keyword)
 
-        async with get_http_client(timeout=self._timeout, client=self._client) as client:
-            response = await client.get(url)
-            response.raise_for_status()
+        try:
+            async with get_http_client(timeout=self._timeout, client=self._client) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+        except httpx.HTTPError:
+            return []
 
         return self._parse_rss(
             response.text,
@@ -121,7 +128,7 @@ class GoogleNewsCollector(BaseCollector):
             return None
 
         published_at = self._parse_pub_date(self._element_text(item, "pubDate"))
-        if published_at is not None and not self._in_window(
+        if published_at is None or not self._in_window(
             published_at,
             window_start=window_start,
             window_end=window_end,
