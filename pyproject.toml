@@ -47,12 +47,13 @@ dev = [
 ]
 prophet = ["prophet>=1.1"]
 ruptures = ["ruptures>=1.1"]
+river = ["river>=0.21"]
 ranking = ["sentence-transformers>=3.0"]
 openai = ["openai>=1.0"]
 trends = ["pytrends>=4.9"]
 parquet = ["pyarrow>=15.0"]
 all = [
-    "whytrend[prophet,ruptures,ranking,openai,trends,parquet]",
+    "whytrend[prophet,ruptures,river,ranking,openai,trends,parquet]",
 ]
 
 [project.urls]
@@ -77,7 +78,7 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["pytrends.*", "prophet.*", "sentence_transformers.*", "openai.*", "ruptures.*"]
+module = ["pytrends.*", "prophet.*", "sentence_transformers.*", "openai.*", "ruptures.*", "river.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

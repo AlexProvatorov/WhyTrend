@@ -35,6 +35,7 @@ pip install -e ".[openai]"      # OpenAI API
 pip install -e ".[trends]"      # Google Trends
 pip install -e ".[prophet]"       # Prophet detector
 pip install -e ".[ruptures]"      # change-point detector
+pip install -e ".[river]"         # online / streaming detector
 pip install -e ".[ranking]"       # Embedding ranker
 pip install -e ".[all]"           # everything
 ```
@@ -177,11 +178,13 @@ Source → Detector → Event Builder → Collectors → Ranker → Explainer �
 | **ZScoreDetector** | Sudden spikes/drops vs the series mean | Fast, no extra deps |
 | **ProphetDetector** | Points outside a forecast band (trend + seasonality) | Needs `whytrend[prophet]` |
 | **RupturesDetector** | Structural breaks / regime changes | Needs `whytrend[ruptures]`; emits `changepoint` |
+| **RiverDetector** | Online / streaming point-by-point scores | Needs `whytrend[river]`; batch + `update()` |
 
 ```python
-from whytrend import RupturesDetector
+from whytrend import RiverDetector, RupturesDetector
 
 RupturesDetector(algorithm="pelt", model="rbf", penalty=10.0)
+RiverDetector(model="gaussian", threshold=0.95, min_points=10)
 ```
 
 ## Roadmap
@@ -196,7 +199,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 
 ### v0.3 — More detectors
 - [x] Ruptures (change-point)
-- [ ] River / streaming detectors
+- [x] River / streaming detectors
 
 ### v0.4 — More LLM providers
 - [ ] Anthropic, Gemini, DeepSeek

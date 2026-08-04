@@ -7,7 +7,7 @@ import pytest
 from tests.stubs import StubCollector, StubExplainer
 from whytrend.core import AnomalyType
 from whytrend.core.series import TimeSeries
-from whytrend.detectors import ProphetDetector, RupturesDetector, ZScoreDetector
+from whytrend.detectors import ProphetDetector, RiverDetector, RupturesDetector, ZScoreDetector
 from whytrend.events import EventBuilder
 from whytrend.pipeline import Pipeline
 from whytrend.sources import PandasSource
@@ -121,6 +121,69 @@ def test_ruptures_detector_validation() -> None:
 
     with pytest.raises(ValueError, match="provide penalty and/or n_bkps"):
         RupturesDetector(algorithm="binseg", penalty=None, n_bkps=None)
+
+
+def test_river_detector_finds_injected_anomaly(python_interest_series) -> None:
+    detector = RiverDetector(min_points=2, threshold=0.5)
+    # Warm-up scores stay 0; inject a high score on the last spike point.
+    scores = [0.0, 0.0, 0.1, 0.2, 0.99]
+    with patch.object(detector, "_score_series", return_value=scores):
+        result = detector.detect(python_interest_series)
+
+    assert detector.name == "river"
+    assert result.detector_name == "river"
+    assert result.primary is not None
+    assert result.primary.index == 4
+    assert result.primary.value == 640.0
+    assert result.primary.anomaly_type is AnomalyType.SPIKE
+    assert result.metadata["model"] == "gaussian"
+    assert result.metadata["detection_count"] == 1
+
+
+def test_river_detector_returns_empty_for_short_series(python_interest_series) -> None:
+    short_series = python_interest_series.window(
+        datetime(2026, 1, 1, tzinfo=UTC),
+        datetime(2026, 1, 3, tzinfo=UTC),
+    )
+
+    result = RiverDetector(min_points=5).detect(short_series)
+
+    assert result.detections == []
+    assert result.metadata["reason"] == "insufficient_points"
+
+
+def test_river_detector_update_respects_warmup_and_threshold() -> None:
+    detector = RiverDetector(min_points=2, threshold=0.8)
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.scores = [0.1, 0.95]
+
+        def score_one(self, *args, **kwargs):
+            _ = args, kwargs
+            return self.scores.pop(0)
+
+        def learn_one(self, *args, **kwargs) -> None:
+            _ = args, kwargs
+
+    with patch.object(detector, "_create_model", return_value=FakeModel()):
+        assert detector.update(10.0) is None  # warm-up
+        assert detector.update(11.0) is None  # warm-up completes
+        assert detector.update(12.0) is None  # score 0.1
+        detection = detector.update(100.0)  # score 0.95
+
+    assert detection is not None
+    assert detection.value == 100.0
+    assert detection.score == pytest.approx(0.95)
+
+
+def test_river_detector_validation() -> None:
+    with pytest.raises(ValueError, match="model must be one of"):
+        RiverDetector(model="unknown")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="threshold must be in"):
+        RiverDetector(threshold=0)
+    with pytest.raises(ValueError, match="min_points must be >= 1"):
+        RiverDetector(min_points=0)
 
 
 def test_event_builder_uses_detector_output(python_interest_series) -> None:
