@@ -80,6 +80,17 @@ class FailingCollector(BaseCollector):
         raise RuntimeError(msg)
 
 
+class FailingExplainer(BaseExplainer):
+    @property
+    def name(self) -> str:
+        return "failing-explainer"
+
+    async def explain(self, event: Event, evidences: list[Evidence]) -> Explanation:
+        _ = event, evidences
+        msg = "explainer unavailable"
+        raise RuntimeError(msg)
+
+
 class StubExplainer(BaseExplainer):
     def __init__(self, *, name: str = "stub-explainer", summary_prefix: str = "Explained") -> None:
         self._name = name

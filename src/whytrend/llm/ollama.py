@@ -61,7 +61,7 @@ class OllamaProvider(BaseLLMProvider):
         message = response_payload.get("message")
         if not isinstance(message, dict):
             msg = "Ollama returned an unexpected response payload"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         content = message.get("content")
         if not isinstance(content, str) or not content.strip():

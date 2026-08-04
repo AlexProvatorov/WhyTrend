@@ -35,8 +35,14 @@ def series_from_dataframe(
 
 
 async def read_csv(path: Path, **kwargs: Any) -> pd.DataFrame:
-    return await asyncio.to_thread(lambda: pd.read_csv(path, **kwargs))
+    def _read() -> pd.DataFrame:
+        return pd.read_csv(path, **kwargs)  # type: ignore[no-any-return]
+
+    return await asyncio.to_thread(_read)
 
 
 async def read_parquet(path: Path, **kwargs: Any) -> pd.DataFrame:
-    return await asyncio.to_thread(lambda: pd.read_parquet(path, **kwargs))
+    def _read() -> pd.DataFrame:
+        return pd.read_parquet(path, **kwargs)  # type: ignore[no-any-return]
+
+    return await asyncio.to_thread(_read)

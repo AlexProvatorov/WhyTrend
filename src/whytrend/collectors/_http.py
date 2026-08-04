@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
+
+from whytrend._version import __version__
+
+DEFAULT_USER_AGENT = f"whytrend/{__version__} (https://github.com/AlexProvatorov/WhyTrend)"
 
 
 @asynccontextmanager
@@ -14,7 +18,7 @@ async def get_http_client(
     *,
     timeout: float,
     client: httpx.AsyncClient | None = None,
-) -> AsyncIterator[httpx.AsyncClient]:
+) -> AsyncGenerator[httpx.AsyncClient]:
     """Yield an HTTP client, creating one when not provided."""
     if client is not None:
         yield client

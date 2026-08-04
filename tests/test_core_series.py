@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -46,8 +46,8 @@ def test_from_points_rejects_empty_input() -> None:
 
 def test_from_points_accepts_time_series_point_models() -> None:
     points = [
-        TimeSeriesPoint(timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc), value=120.0),
-        TimeSeriesPoint(timestamp=datetime(2026, 1, 2, tzinfo=timezone.utc), value=123.0),
+        TimeSeriesPoint(timestamp=datetime(2026, 1, 1, tzinfo=UTC), value=120.0),
+        TimeSeriesPoint(timestamp=datetime(2026, 1, 2, tzinfo=UTC), value=123.0),
     ]
 
     series = TimeSeries.from_points(points, name="demo")

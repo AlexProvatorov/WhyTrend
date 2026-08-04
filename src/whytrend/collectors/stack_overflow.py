@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -73,7 +73,7 @@ class StackOverflowCollector(BaseCollector):
                     f"{STACKEXCHANGE_API_BASE}/search/advanced",
                     params=params,
                 )
-                if response.status_code in {400, 403, 429}:
+                if response.is_error:
                     return []
                 response.raise_for_status()
                 payload = response.json()
@@ -145,5 +145,5 @@ class StackOverflowCollector(BaseCollector):
     @staticmethod
     def _as_utc(moment: datetime) -> datetime:
         if moment.tzinfo is None:
-            return moment.replace(tzinfo=timezone.utc)
-        return moment.astimezone(timezone.utc)
+            return moment.replace(tzinfo=UTC)
+        return moment.astimezone(UTC)

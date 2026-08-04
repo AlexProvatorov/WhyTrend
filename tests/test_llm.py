@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -16,9 +16,9 @@ from whytrend.llm._parsing import explanation_from_payload, fallback_explanation
 def llm_event() -> Event:
     return Event(
         anomaly_type=AnomalyType.SPIKE,
-        timestamp=datetime(2026, 1, 4, tzinfo=timezone.utc),
-        window_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        window_end=datetime(2026, 1, 7, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 1, 4, tzinfo=UTC),
+        window_start=datetime(2026, 1, 1, tzinfo=UTC),
+        window_end=datetime(2026, 1, 7, tzinfo=UTC),
         keyword="Python",
         series_name="python_interest",
         value=610.0,

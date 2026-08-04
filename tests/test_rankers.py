@@ -1,14 +1,14 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 import pytest
 
+from tests.stubs import StubCollector, StubExplainer
 from whytrend.core import AnomalyType, Evidence
+from whytrend.detectors import ZScoreDetector
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker, EmbeddingRanker
 from whytrend.sources import PandasSource
-from tests.stubs import StubCollector, StubExplainer
-from whytrend.detectors import ZScoreDetector
 
 
 @pytest.fixture
@@ -17,9 +17,9 @@ def ranking_event():
 
     return Event(
         anomaly_type=AnomalyType.SPIKE,
-        timestamp=datetime(2026, 1, 4, tzinfo=timezone.utc),
-        window_start=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        window_end=datetime(2026, 1, 7, tzinfo=timezone.utc),
+        timestamp=datetime(2026, 1, 4, tzinfo=UTC),
+        window_start=datetime(2026, 1, 1, tzinfo=UTC),
+        window_end=datetime(2026, 1, 7, tzinfo=UTC),
         keyword="Python",
         series_name="python_interest",
         value=610.0,

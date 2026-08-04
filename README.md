@@ -34,6 +34,8 @@ pip install -e ".[dev]"
 pip install -e ".[openai]"      # OpenAI API
 pip install -e ".[trends]"      # Google Trends
 pip install -e ".[prophet]"       # Prophet detector
+pip install -e ".[ruptures]"      # change-point detector
+pip install -e ".[river]"         # online / streaming detector
 pip install -e ".[ranking]"       # Embedding ranker
 pip install -e ".[all]"           # everything
 ```
@@ -169,6 +171,22 @@ RSSFeedCollector(
 Source → Detector → Event Builder → Collectors → Ranker → Explainer → Report
 ```
 
+### Choosing a detector
+
+| Detector | Best for | Notes |
+|----------|----------|-------|
+| **ZScoreDetector** | Sudden spikes/drops vs the series mean | Fast, no extra deps |
+| **ProphetDetector** | Points outside a forecast band (trend + seasonality) | Needs `whytrend[prophet]` |
+| **RupturesDetector** | Structural breaks / regime changes | Needs `whytrend[ruptures]`; emits `changepoint` |
+| **RiverDetector** | Online / streaming point-by-point scores | Needs `whytrend[river]`; batch + `update()` |
+
+```python
+from whytrend import RiverDetector, RupturesDetector
+
+RupturesDetector(algorithm="pelt", model="rbf", penalty=10.0)
+RiverDetector(model="gaussian", threshold=0.95, min_points=10)
+```
+
 ## Roadmap
 
 Core MVP is in place. Next focus: **integrations and ecosystem**.
@@ -180,8 +198,8 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [x] RSS / Stack Overflow
 
 ### v0.3 — More detectors
-- [ ] Ruptures (change-point)
-- [ ] River / streaming detectors
+- [x] Ruptures (change-point)
+- [x] River / streaming detectors
 
 ### v0.4 — More LLM providers
 - [ ] Anthropic, Gemini, DeepSeek
@@ -191,6 +209,10 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [ ] HTML / PDF reports
 - [ ] CLI (`whytrend analyze ...`)
 - [ ] Plugin registry (entry points)
+
+### v0.6 — Ranking quality
+- [ ] Hybrid ranker (BM25 + embeddings merged with RRF)
+- [ ] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
 
 Track progress in [GitHub Issues](https://github.com/AlexProvatorov/WhyTrend/issues).
 

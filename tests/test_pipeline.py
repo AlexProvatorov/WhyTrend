@@ -1,9 +1,16 @@
 import pytest
 
+from tests.stubs import (
+    FailingCollector,
+    FailingExplainer,
+    StubCollector,
+    StubDetector,
+    StubExplainer,
+    StubSource,
+)
 from whytrend.core import AnomalyType
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker
-from tests.stubs import FailingCollector, StubCollector, StubDetector, StubExplainer, StubSource
 
 
 @pytest.mark.asyncio
@@ -80,6 +87,28 @@ async def test_failing_collector_does_not_break_pipeline(
 
     assert len(report.explanations) == 1
     assert report.explanations[0].metadata["evidence_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_failing_explainer_falls_back_without_breaking_pipeline(
+    python_interest_series,
+    spike_detection,
+    sample_evidence,
+) -> None:
+    pipeline = (
+        Pipeline()
+        .add_source(StubSource(python_interest_series))
+        .add_detector(StubDetector([spike_detection]))
+        .add_collector(StubCollector([sample_evidence]))
+        .add_explainer(FailingExplainer())
+    )
+
+    report = await pipeline.arun()
+
+    assert len(report.explanations) == 1
+    assert report.explanations[0].metadata.get("fallback") is True
+    assert report.explanations[0].metadata.get("explainer_error") == "RuntimeError"
+    assert report.explanations[0].causes[0].url == sample_evidence.url
 
 
 def test_duplicate_ranker_raises(pipeline_components) -> None:

@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - name: Checkout
@@ -30,6 +30,9 @@ jobs:
 
       - name: Ruff
         run: ruff check src tests examples
+
+      - name: Ruff format
+        run: ruff format --check src tests examples
 
       - name: Mypy
         run: mypy src/whytrend
