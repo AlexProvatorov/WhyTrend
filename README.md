@@ -244,6 +244,11 @@ make test          # pytest
 make help          # list all targets
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Security reports: [SECURITY.md](SECURITY.md).
+
 ## Author
 
 **Alexander Provatorov** — [GitHub @AlexProvatorov](https://github.com/AlexProvatorov)
