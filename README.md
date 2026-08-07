@@ -1,8 +1,8 @@
 # WhyTrend
 
-[![CI](https://github.com/AlexProvatorov/WhyTrend/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexProvatorov/WhyTrend/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[CI](https://github.com/AlexProvatorov/WhyTrend/actions/workflows/ci.yml)
+[License](LICENSE)
+[Python](https://www.python.org/downloads/)
 
 **Open Source Framework for Explainable Time Series Analysis**
 
@@ -32,6 +32,9 @@ pip install -e ".[dev]"
 
 ```bash
 pip install -e ".[openai]"      # OpenAI API
+pip install -e ".[anthropic]"   # Anthropic Claude
+pip install -e ".[deepseek]"    # DeepSeek (OpenAI-compatible client)
+pip install -e ".[gemini]"      # Gemini marker (uses core httpx; no extra package)
 pip install -e ".[trends]"      # Google Trends
 pip install -e ".[prophet]"       # Prophet detector
 pip install -e ".[ruptures]"      # change-point detector
@@ -120,7 +123,24 @@ print(report.executive_summary)
 
 Use `OllamaExplainer(model="llama3.2")` for a local LLM instead of OpenAI.
 
-Reddit credentials (create at https://www.reddit.com/prefs/apps):
+Other cloud providers (same explainability pipeline, different backends):
+
+```python
+from whytrend import AnthropicExplainer, DeepSeekExplainer, GeminiExplainer
+
+# ANTHROPIC_API_KEY — default model: claude-sonnet-4-20250514
+AnthropicExplainer()
+
+# GEMINI_API_KEY or GOOGLE_API_KEY — default model: gemini-2.0-flash
+GeminiExplainer()
+
+# DEEPSEEK_API_KEY — default model: deepseek-chat
+DeepSeekExplainer()
+```
+
+Pass `api_key="..."` to any of these constructors if you prefer not to use env vars. Swap them into `.add_explainer(...)` the same way as `OpenAIExplainer`.
+
+Reddit credentials (create at [https://www.reddit.com/prefs/apps](https://www.reddit.com/prefs/apps)):
 
 ```bash
 export REDDIT_CLIENT_ID="..."
@@ -144,7 +164,7 @@ GitHubReleasesCollector(token="ghp_...", repos=["python/cpython"])
 ```
 
 Stack Overflow works without a key for light use. For a higher daily quota
-(register at https://stackapps.com/):
+(register at [https://stackapps.com/](https://stackapps.com/)):
 
 ```bash
 export STACKEXCHANGE_KEY="..."
@@ -173,12 +193,14 @@ Source → Detector → Event Builder → Collectors → Ranker → Explainer �
 
 ### Choosing a detector
 
-| Detector | Best for | Notes |
-|----------|----------|-------|
-| **ZScoreDetector** | Sudden spikes/drops vs the series mean | Fast, no extra deps |
-| **ProphetDetector** | Points outside a forecast band (trend + seasonality) | Needs `whytrend[prophet]` |
-| **RupturesDetector** | Structural breaks / regime changes | Needs `whytrend[ruptures]`; emits `changepoint` |
-| **RiverDetector** | Online / streaming point-by-point scores | Needs `whytrend[river]`; batch + `update()` |
+
+| Detector             | Best for                                             | Notes                                           |
+| -------------------- | ---------------------------------------------------- | ----------------------------------------------- |
+| **ZScoreDetector**   | Sudden spikes/drops vs the series mean               | Fast, no extra deps                             |
+| **ProphetDetector**  | Points outside a forecast band (trend + seasonality) | Needs `whytrend[prophet]`                       |
+| **RupturesDetector** | Structural breaks / regime changes                   | Needs `whytrend[ruptures]`; emits `changepoint` |
+| **RiverDetector**    | Online / streaming point-by-point scores             | Needs `whytrend[river]`; batch + `update()`     |
+
 
 ```python
 from whytrend import RiverDetector, RupturesDetector
@@ -202,7 +224,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [x] River / streaming detectors
 
 ### v0.4 — More LLM providers
-- [ ] Anthropic, Gemini, DeepSeek
+- [x] Anthropic, Gemini, DeepSeek
 - [ ] Azure OpenAI, OpenRouter
 
 ### v0.5 — Reports and DX
@@ -225,11 +247,13 @@ make check     # ruff + format check + mypy + pytest
 
 Supports the three common workflows:
 
-| Tool | Install | Run checks |
-|------|---------|------------|
-| **uv** (default if installed) | `make install` | `make check` |
-| **poetry** | `make install TOOL=poetry` | `make check TOOL=poetry` |
-| **pip** / venv | `make install TOOL=pip` | `make check TOOL=pip` |
+
+| Tool                          | Install                    | Run checks               |
+| ----------------------------- | -------------------------- | ------------------------ |
+| **uv** (default if installed) | `make install`             | `make check`             |
+| **poetry**                    | `make install TOOL=poetry` | `make check TOOL=poetry` |
+| **pip** / venv                | `make install TOOL=pip`    | `make check TOOL=pip`    |
+
 
 Auto-detect order: `uv` → `poetry` → `pip`. Override anytime with `TOOL=...`.
 

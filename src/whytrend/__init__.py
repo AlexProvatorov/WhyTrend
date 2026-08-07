@@ -11,7 +11,15 @@ from whytrend.collectors import (
     WikipediaCollector,
 )
 from whytrend.detectors import ProphetDetector, RiverDetector, RupturesDetector, ZScoreDetector
-from whytrend.explainers import LLMExplainer, MockLLMProvider, OllamaExplainer, OpenAIExplainer
+from whytrend.explainers import (
+    AnthropicExplainer,
+    DeepSeekExplainer,
+    GeminiExplainer,
+    LLMExplainer,
+    MockLLMProvider,
+    OllamaExplainer,
+    OpenAIExplainer,
+)
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker, EmbeddingRanker
 from whytrend.report import JSONRenderer, MarkdownRenderer
@@ -20,9 +28,12 @@ from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSourc
 __author__ = "Alexander Provatorov"
 
 __all__ = [
+    "AnthropicExplainer",
     "BM25Ranker",
     "CSVSource",
+    "DeepSeekExplainer",
     "EmbeddingRanker",
+    "GeminiExplainer",
     "GitHubReleasesCollector",
     "GoogleNewsCollector",
     "GoogleTrends",

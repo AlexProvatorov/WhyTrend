@@ -52,10 +52,14 @@ ruptures = ["ruptures>=1.1"]
 river = ["river>=0.21"]
 ranking = ["sentence-transformers>=3.0"]
 openai = ["openai>=1.0"]
+anthropic = ["anthropic>=0.40"]
+# Gemini uses core httpx against the Generative Language REST API (no extra package).
+gemini = []
+deepseek = ["openai>=1.0"]
 trends = ["pytrends>=4.9"]
 parquet = ["pyarrow>=15.0"]
 all = [
-    "whytrend[prophet,ruptures,river,ranking,openai,trends,parquet]",
+    "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,trends,parquet]",
 ]
 
 [project.urls]
@@ -80,7 +84,15 @@ warn_return_any = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["pytrends.*", "prophet.*", "sentence_transformers.*", "openai.*", "ruptures.*", "river.*"]
+module = [
+    "pytrends.*",
+    "prophet.*",
+    "sentence_transformers.*",
+    "openai.*",
+    "anthropic.*",
+    "ruptures.*",
+    "river.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
