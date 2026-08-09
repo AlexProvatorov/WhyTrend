@@ -32,3 +32,6 @@ htmlcov/
 
 # OS
 .DS_Store
+
+# Example run artifacts
+examples/output/

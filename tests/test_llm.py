@@ -9,19 +9,23 @@ import pytest
 from whytrend.core import AnomalyType, Event, Evidence
 from whytrend.explainers import (
     AnthropicExplainer,
+    AzureOpenAIExplainer,
     DeepSeekExplainer,
     GeminiExplainer,
     LLMExplainer,
     OllamaExplainer,
     OpenAIExplainer,
+    OpenRouterExplainer,
 )
 from whytrend.llm import (
     AnthropicProvider,
+    AzureOpenAIProvider,
     DeepSeekProvider,
     GeminiProvider,
     MockLLMProvider,
     OllamaProvider,
     OpenAIProvider,
+    OpenRouterProvider,
 )
 from whytrend.llm._parsing import explanation_from_payload, fallback_explanation, parse_llm_content
 
@@ -319,6 +323,115 @@ def test_new_explainers_accept_injected_clients() -> None:
     assert isinstance(GeminiExplainer(api_key="x").provider, GeminiProvider)
     assert DeepSeekExplainer(client=SimpleNamespace()).name == "deepseek"
     assert isinstance(DeepSeekExplainer(client=SimpleNamespace()).provider, DeepSeekProvider)
+
+
+@pytest.mark.asyncio
+async def test_azure_openai_provider_parses_json_response(llm_event: Event, llm_evidences) -> None:
+    payload = {
+        "summary": "Azure OpenAI links the spike to Python 3.13.",
+        "confidence": 0.92,
+        "causes": [
+            {
+                "source": "hacker_news",
+                "score": 0.91,
+                "url": "https://example.com/python-3-13",
+                "title": "Python 3.13 released",
+                "summary": "Release announcement.",
+            }
+        ],
+    }
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(
+                create=AsyncMock(
+                    return_value=SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))
+                        ]
+                    )
+                )
+            )
+        )
+    )
+
+    provider = AzureOpenAIProvider(deployment="gpt-4o-mini", client=fake_client)
+    explanation = await provider.explain(llm_event, llm_evidences)
+
+    assert "Python 3.13" in explanation.summary
+    assert explanation.metadata["provider"] == "azure_openai"
+    assert explanation.metadata["deployment"] == "gpt-4o-mini"
+    fake_client.chat.completions.create.assert_awaited_once()
+    assert fake_client.chat.completions.create.await_args.kwargs["model"] == "gpt-4o-mini"
+
+
+@pytest.mark.asyncio
+async def test_openrouter_provider_parses_json_response(llm_event: Event, llm_evidences) -> None:
+    payload = {
+        "summary": "OpenRouter links the spike to Python 3.13.",
+        "confidence": 0.9,
+        "causes": [
+            {
+                "source": "hacker_news",
+                "score": 0.9,
+                "url": "https://example.com/python-3-13",
+                "title": "Python 3.13 released",
+                "summary": "Release announcement.",
+            }
+        ],
+    }
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(
+                create=AsyncMock(
+                    return_value=SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))
+                        ]
+                    )
+                )
+            )
+        )
+    )
+
+    provider = OpenRouterProvider(model="openai/gpt-4o-mini", client=fake_client)
+    explanation = await provider.explain(llm_event, llm_evidences)
+
+    assert "Python 3.13" in explanation.summary
+    assert explanation.metadata["provider"] == "openrouter"
+    assert explanation.metadata["model"] == "openai/gpt-4o-mini"
+    fake_client.chat.completions.create.assert_awaited_once()
+
+
+def test_azure_openai_requires_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+    provider = AzureOpenAIProvider(deployment="gpt-4o-mini")
+    with pytest.raises(ValueError, match="AZURE_OPENAI_API_KEY"):
+        provider._resolve_api_key()
+    with pytest.raises(ValueError, match="AZURE_OPENAI_ENDPOINT"):
+        provider._resolve_endpoint()
+
+
+def test_azure_openai_requires_deployment() -> None:
+    with pytest.raises(ValueError, match="deployment"):
+        AzureOpenAIProvider(deployment="   ")
+
+
+def test_openrouter_provider_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    provider = OpenRouterProvider()
+    with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
+        provider._resolve_api_key()
+
+
+def test_azure_and_openrouter_explainers_accept_injected_clients() -> None:
+    azure = AzureOpenAIExplainer(deployment="gpt-4o-mini", client=SimpleNamespace())
+    assert azure.name == "azure_openai"
+    assert isinstance(azure.provider, AzureOpenAIProvider)
+
+    openrouter = OpenRouterExplainer(client=SimpleNamespace())
+    assert openrouter.name == "openrouter"
+    assert isinstance(openrouter.provider, OpenRouterProvider)
 
 
 def test_explanation_from_payload_rejects_invalid_confidence(llm_event: Event) -> None:

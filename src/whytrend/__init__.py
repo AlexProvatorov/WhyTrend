@@ -13,12 +13,14 @@ from whytrend.collectors import (
 from whytrend.detectors import ProphetDetector, RiverDetector, RupturesDetector, ZScoreDetector
 from whytrend.explainers import (
     AnthropicExplainer,
+    AzureOpenAIExplainer,
     DeepSeekExplainer,
     GeminiExplainer,
     LLMExplainer,
     MockLLMProvider,
     OllamaExplainer,
     OpenAIExplainer,
+    OpenRouterExplainer,
 )
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker, EmbeddingRanker
@@ -29,6 +31,7 @@ __author__ = "Alexander Provatorov"
 
 __all__ = [
     "AnthropicExplainer",
+    "AzureOpenAIExplainer",
     "BM25Ranker",
     "CSVSource",
     "DeepSeekExplainer",
@@ -44,6 +47,7 @@ __all__ = [
     "MockLLMProvider",
     "OllamaExplainer",
     "OpenAIExplainer",
+    "OpenRouterExplainer",
     "PandasSource",
     "ParquetSource",
     "Pipeline",

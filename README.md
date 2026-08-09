@@ -34,6 +34,8 @@ pip install -e ".[dev]"
 pip install -e ".[openai]"      # OpenAI API
 pip install -e ".[anthropic]"   # Anthropic Claude
 pip install -e ".[deepseek]"    # DeepSeek (OpenAI-compatible client)
+pip install -e ".[azure]"       # Azure OpenAI
+pip install -e ".[openrouter]"  # OpenRouter
 pip install -e ".[gemini]"      # Gemini marker (uses core httpx; no extra package)
 pip install -e ".[trends]"      # Google Trends
 pip install -e ".[prophet]"       # Prophet detector
@@ -126,7 +128,13 @@ Use `OllamaExplainer(model="llama3.2")` for a local LLM instead of OpenAI.
 Other cloud providers (same explainability pipeline, different backends):
 
 ```python
-from whytrend import AnthropicExplainer, DeepSeekExplainer, GeminiExplainer
+from whytrend import (
+    AnthropicExplainer,
+    AzureOpenAIExplainer,
+    DeepSeekExplainer,
+    GeminiExplainer,
+    OpenRouterExplainer,
+)
 
 # ANTHROPIC_API_KEY — default model: claude-sonnet-4-20250514
 AnthropicExplainer()
@@ -136,9 +144,18 @@ GeminiExplainer()
 
 # DEEPSEEK_API_KEY — default model: deepseek-chat
 DeepSeekExplainer()
+
+# AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT (or pass api_key= / azure_endpoint=)
+AzureOpenAIExplainer(deployment="gpt-4o-mini")
+
+# OPENROUTER_API_KEY — default model: openai/gpt-4o-mini
+# Optional site_url= / app_title= set OpenRouter ranking headers
+OpenRouterExplainer(model="anthropic/claude-sonnet-4")
 ```
 
 Pass `api_key="..."` to any of these constructors if you prefer not to use env vars. Swap them into `.add_explainer(...)` the same way as `OpenAIExplainer`.
+
+`OpenAIExplainer(base_url="https://openrouter.ai/api/v1", api_key=...)` also works for OpenRouter; the dedicated classes improve DX (env vars, Azure deployment/endpoint, OpenRouter headers).
 
 Reddit credentials (create at [https://www.reddit.com/prefs/apps](https://www.reddit.com/prefs/apps)):
 
@@ -225,7 +242,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 
 ### v0.4 — More LLM providers
 - [x] Anthropic, Gemini, DeepSeek
-- [ ] Azure OpenAI, OpenRouter
+- [x] Azure OpenAI, OpenRouter
 
 ### v0.5 — Reports and DX
 - [ ] HTML / PDF reports

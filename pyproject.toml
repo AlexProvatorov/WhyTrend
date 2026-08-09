@@ -56,10 +56,12 @@ anthropic = ["anthropic>=0.40"]
 # Gemini uses core httpx against the Generative Language REST API (no extra package).
 gemini = []
 deepseek = ["openai>=1.0"]
+azure = ["openai>=1.0"]
+openrouter = ["openai>=1.0"]
 trends = ["pytrends>=4.9"]
 parquet = ["pyarrow>=15.0"]
 all = [
-    "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,trends,parquet]",
+    "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,azure,openrouter,trends,parquet]",
 ]
 
 [project.urls]
