@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whytrend"
-version = "0.3.0"
+version = "0.4.0"
 description = "Open Source Framework for Explainable Time Series Analysis"
 readme = "README.md"
 license = "Apache-2.0"
