@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/AlexProvatorov/WhyTrend/security/advisories/new
+    about: Please report vulnerabilities privately (see SECURITY.md).
+  - name: Discussions / questions
+    url: https://github.com/AlexProvatorov/WhyTrend/issues
+    about: For general questions, open an issue and choose the closest template, or ask in a new issue with clear context.
