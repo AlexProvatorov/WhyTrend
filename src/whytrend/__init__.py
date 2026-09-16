@@ -24,7 +24,7 @@ from whytrend.explainers import (
 )
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker, EmbeddingRanker
-from whytrend.report import JSONRenderer, MarkdownRenderer
+from whytrend.report import HTMLRenderer, JSONRenderer, MarkdownRenderer, PDFRenderer
 from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSource
 
 __author__ = "Alexander Provatorov"
@@ -41,6 +41,7 @@ __all__ = [
     "GoogleNewsCollector",
     "GoogleTrends",
     "HackerNewsCollector",
+    "HTMLRenderer",
     "JSONRenderer",
     "LLMExplainer",
     "MarkdownRenderer",
@@ -48,6 +49,7 @@ __all__ = [
     "OllamaExplainer",
     "OpenAIExplainer",
     "OpenRouterExplainer",
+    "PDFRenderer",
     "PandasSource",
     "ParquetSource",
     "Pipeline",

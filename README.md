@@ -14,7 +14,7 @@ If this project is useful to you, consider giving it a **star** on GitHub — it
 
 - Fluent `Pipeline` API for source → detection → collection → ranking → explanation
 - Pluggable sources, detectors, collectors, rankers, and LLM providers
-- Structured `Report` output (JSON and Markdown)
+- Structured `Report` output (JSON, Markdown, HTML, and PDF)
 - Async collectors and LLM calls
 - Works offline with `MockLLMProvider` and local models via `OllamaExplainer`
 
@@ -42,6 +42,8 @@ pip install -e ".[prophet]"       # Prophet detector
 pip install -e ".[ruptures]"      # change-point detector
 pip install -e ".[river]"         # online / streaming detector
 pip install -e ".[ranking]"       # Embedding ranker
+pip install -e ".[pdf]"           # PDF reports (xhtml2pdf)
+pip install -e ".[reports]"       # report extras (currently PDF)
 pip install -e ".[all]"           # everything
 ```
 
@@ -68,6 +70,16 @@ pipeline = (
 report = pipeline.run()
 print(report.executive_summary)
 print(report.to_markdown())
+print(report.to_html())
+```
+
+Export a shareable HTML page or PDF attachment (`whytrend[pdf]` for PDF):
+
+```python
+from pathlib import Path
+
+Path("report.html").write_text(report.to_html(), encoding="utf-8")
+Path("report.pdf").write_bytes(report.to_pdf())  # pip install 'whytrend[pdf]'
 ```
 
 Run the full demo:
@@ -245,7 +257,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [x] Azure OpenAI, OpenRouter
 
 ### v0.5 — Reports and DX
-- [ ] HTML / PDF reports
+- [x] HTML / PDF reports
 - [ ] CLI (`whytrend analyze ...`)
 - [ ] Plugin registry (entry points)
 

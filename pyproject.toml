@@ -60,8 +60,10 @@ azure = ["openai>=1.0"]
 openrouter = ["openai>=1.0"]
 trends = ["pytrends>=4.9"]
 parquet = ["pyarrow>=15.0"]
+pdf = ["xhtml2pdf>=0.2.16"]
+reports = ["whytrend[pdf]"]
 all = [
-    "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,azure,openrouter,trends,parquet]",
+    "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,azure,openrouter,trends,parquet,pdf]",
 ]
 
 [project.urls]
@@ -94,6 +96,7 @@ module = [
     "anthropic.*",
     "ruptures.*",
     "river.*",
+    "xhtml2pdf.*",
 ]
 ignore_missing_imports = true
 
