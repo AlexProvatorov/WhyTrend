@@ -14,6 +14,7 @@ If this project is useful to you, consider giving it a **star** on GitHub — it
 
 - Fluent `Pipeline` API for source → detection → collection → ranking → explanation
 - Pluggable sources, detectors, collectors, rankers, and LLM providers
+- Plugin registry via Python entry points (`whytrend.collectors`, …)
 - Structured `Report` output (JSON, Markdown, HTML, and PDF)
 - Async collectors and LLM calls
 - Works offline with `MockLLMProvider` and local models via `OllamaExplainer`
@@ -238,6 +239,37 @@ RupturesDetector(algorithm="pelt", model="rbf", penalty=10.0)
 RiverDetector(model="gaussian", threshold=0.95, min_points=10)
 ```
 
+## Writing a WhyTrend plugin
+
+Third-party packages can register components without forking WhyTrend. Direct imports (`from whytrend import ZScoreDetector`) remain the supported API.
+
+Declare an entry point in your package:
+
+```toml
+[project.entry-points."whytrend.collectors"]
+my_news = "mypkg.collectors:MyNewsCollector"
+```
+
+Groups:
+
+- `whytrend.sources`
+- `whytrend.detectors`
+- `whytrend.collectors`
+- `whytrend.rankers`
+- `whytrend.explainers`
+
+Discover and load plugins at runtime:
+
+```python
+from whytrend import list_plugins, load_plugin
+
+detectors = list_plugins("whytrend.detectors")
+Ruptures = load_plugin("whytrend.detectors", "ruptures")
+MyNews = load_plugin("whytrend.collectors", "my_news")
+```
+
+`load_plugin` raises `UnknownPluginError` if the name is missing. Built-in classes are also registered in WhyTrend's own `pyproject.toml`, so names like `zscore` and `hacker_news` resolve the same way.
+
 ## Roadmap
 
 Core MVP is in place. Next focus: **integrations and ecosystem**.
@@ -259,7 +291,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 ### v0.5 — Reports and DX
 - [x] HTML / PDF reports
 - [ ] CLI (`whytrend analyze ...`)
-- [ ] Plugin registry (entry points)
+- [x] Plugin registry (entry points)
 
 ### v0.6 — Ranking quality
 - [ ] Hybrid ranker (BM25 + embeddings merged with RRF)

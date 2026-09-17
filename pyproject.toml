@@ -66,6 +66,42 @@ all = [
     "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,azure,openrouter,trends,parquet,pdf]",
 ]
 
+[project.entry-points."whytrend.sources"]
+csv = "whytrend.sources:CSVSource"
+pandas = "whytrend.sources:PandasSource"
+parquet = "whytrend.sources:ParquetSource"
+google_trends = "whytrend.sources:GoogleTrends"
+
+[project.entry-points."whytrend.detectors"]
+zscore = "whytrend.detectors:ZScoreDetector"
+prophet = "whytrend.detectors:ProphetDetector"
+ruptures = "whytrend.detectors:RupturesDetector"
+river = "whytrend.detectors:RiverDetector"
+
+[project.entry-points."whytrend.collectors"]
+hacker_news = "whytrend.collectors:HackerNewsCollector"
+wikipedia = "whytrend.collectors:WikipediaCollector"
+google_news = "whytrend.collectors:GoogleNewsCollector"
+reddit = "whytrend.collectors:RedditCollector"
+github_releases = "whytrend.collectors:GitHubReleasesCollector"
+stack_overflow = "whytrend.collectors:StackOverflowCollector"
+rss = "whytrend.collectors:RSSFeedCollector"
+
+[project.entry-points."whytrend.rankers"]
+bm25 = "whytrend.rankers:BM25Ranker"
+embedding = "whytrend.rankers:EmbeddingRanker"
+
+[project.entry-points."whytrend.explainers"]
+llm = "whytrend.explainers:LLMExplainer"
+openai = "whytrend.explainers:OpenAIExplainer"
+anthropic = "whytrend.explainers:AnthropicExplainer"
+gemini = "whytrend.explainers:GeminiExplainer"
+deepseek = "whytrend.explainers:DeepSeekExplainer"
+azure_openai = "whytrend.explainers:AzureOpenAIExplainer"
+openrouter = "whytrend.explainers:OpenRouterExplainer"
+ollama = "whytrend.explainers:OllamaExplainer"
+mock = "whytrend.explainers:MockLLMProvider"
+
 [project.urls]
 Homepage = "https://github.com/AlexProvatorov/WhyTrend"
 Documentation = "https://github.com/AlexProvatorov/WhyTrend#readme"
