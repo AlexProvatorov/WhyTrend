@@ -18,6 +18,7 @@ If this project is useful to you, consider giving it a **star** on GitHub — it
 - Structured `Report` output (JSON, Markdown, HTML, and PDF)
 - Async collectors and LLM calls
 - Works offline with `MockLLMProvider` and local models via `OllamaExplainer`
+- `whytrend` command-line interface over the same plugin registry as `Pipeline`
 
 ## Installation
 
@@ -47,6 +48,54 @@ pip install -e ".[pdf]"           # PDF reports (xhtml2pdf)
 pip install -e ".[reports]"       # report extras (currently PDF)
 pip install -e ".[all]"           # everything
 ```
+
+## Quickstart CLI
+
+After install, analysis is one command. The mock explainer does not call the network when collectors are omitted:
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --detector zscore \
+  --set detector.threshold=1.0 \
+  --explainer mock \
+  --out report.md
+```
+
+Omit `--out` to print the report. `--format` is `markdown`, `json`, `html`, or `pdf`. PDF writes bytes and requires `--out` (`pip install 'whytrend[pdf]'`). `--parquet` reads a Parquet file instead of CSV. `--trends KEYWORD` loads Google Trends (`pip install 'whytrend[trends]'`).
+
+`whytrend --help` and `whytrend analyze --help` list the plugins installed in this environment. A plugin that needs constructor arguments stays in that list and is created when every missing value is passed with `--set`. `llm` takes `--provider` instead. Collectors call external sources, so the offline path is the command above with no `--collectors`. `hn` is an alias of `hacker_news`:
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --collectors hn,wikipedia \
+  --ranker bm25 \
+  --format json \
+  --out report.json
+```
+
+Repeat `--set` as `detector.<param>`, `explainer.<param>`, `ranker.<param>`, `collector.<name>.<param>`, `source.<param>`, or `provider.<param>`. `none` clears an optional value (`ranker.top_k=none`). Lists are comma-separated (`collector.github_releases.repos=owner/name`) and dicts are JSON (`detector.prophet_kwargs={"seasonality_mode":"multiplicative"}`).
+
+Cloud explainers read the same environment variables as the Python API below (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and the rest). Ollama needs a local server instead of a key.
+
+RSS, an LLM provider, and an HTML report:
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --collectors rss \
+  --set collector.rss.feed_urls=https://blog.python.org/feeds/posts/default \
+  --explainer llm \
+  --provider mock \
+  --format html \
+  --out report.html
+```
+
+Azure OpenAI needs its deployment name: `--explainer azure_openai --set explainer.deployment=my-deploy` (`AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT`). In-memory dataframes and `client` objects stay in the Python API.
 
 ## Quickstart (CSV, no API keys)
 
@@ -290,7 +339,7 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 
 ### v0.5 — Reports and DX
 - [x] HTML / PDF reports
-- [ ] CLI (`whytrend analyze ...`)
+- [x] CLI (`whytrend analyze ...`)
 - [x] Plugin registry (entry points)
 
 ### v0.6 — Ranking quality

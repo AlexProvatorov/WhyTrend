@@ -66,6 +66,9 @@ all = [
     "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,azure,openrouter,trends,parquet,pdf]",
 ]
 
+[project.scripts]
+whytrend = "whytrend.cli:main"
+
 [project.entry-points."whytrend.sources"]
 csv = "whytrend.sources:CSVSource"
 pandas = "whytrend.sources:PandasSource"
@@ -101,6 +104,16 @@ azure_openai = "whytrend.explainers:AzureOpenAIExplainer"
 openrouter = "whytrend.explainers:OpenRouterExplainer"
 ollama = "whytrend.explainers:OllamaExplainer"
 mock = "whytrend.explainers:MockLLMProvider"
+
+[project.entry-points."whytrend.llm"]
+mock = "whytrend.llm:MockLLMProvider"
+openai = "whytrend.llm:OpenAIProvider"
+anthropic = "whytrend.llm:AnthropicProvider"
+gemini = "whytrend.llm:GeminiProvider"
+deepseek = "whytrend.llm:DeepSeekProvider"
+azure = "whytrend.llm:AzureOpenAIProvider"
+openrouter = "whytrend.llm:OpenRouterProvider"
+ollama = "whytrend.llm:OllamaProvider"
 
 [project.urls]
 Homepage = "https://github.com/AlexProvatorov/WhyTrend"
