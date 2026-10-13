@@ -23,8 +23,9 @@ from whytrend.explainers import (
     OpenRouterExplainer,
 )
 from whytrend.pipeline import Pipeline
+from whytrend.plugins import PluginError, UnknownPluginError, list_plugins, load_plugin
 from whytrend.rankers import BM25Ranker, EmbeddingRanker
-from whytrend.report import JSONRenderer, MarkdownRenderer
+from whytrend.report import HTMLRenderer, JSONRenderer, MarkdownRenderer, PDFRenderer
 from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSource
 
 __author__ = "Alexander Provatorov"
@@ -41,6 +42,7 @@ __all__ = [
     "GoogleNewsCollector",
     "GoogleTrends",
     "HackerNewsCollector",
+    "HTMLRenderer",
     "JSONRenderer",
     "LLMExplainer",
     "MarkdownRenderer",
@@ -48,16 +50,21 @@ __all__ = [
     "OllamaExplainer",
     "OpenAIExplainer",
     "OpenRouterExplainer",
+    "PDFRenderer",
     "PandasSource",
     "ParquetSource",
     "Pipeline",
+    "PluginError",
     "ProphetDetector",
     "RSSFeedCollector",
     "RedditCollector",
     "RiverDetector",
     "RupturesDetector",
     "StackOverflowCollector",
+    "UnknownPluginError",
     "WikipediaCollector",
     "ZScoreDetector",
     "__version__",
+    "list_plugins",
+    "load_plugin",
 ]

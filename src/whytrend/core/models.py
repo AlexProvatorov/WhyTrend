@@ -148,3 +148,18 @@ class Report(WhyTrendModel):
         from whytrend.report import MarkdownRenderer
 
         return MarkdownRenderer().render(self)
+
+    def to_html(self) -> str:
+        """Return a self-contained HTML page for the report."""
+        from whytrend.report import HTMLRenderer
+
+        return HTMLRenderer().render(self)
+
+    def to_pdf(self) -> bytes:
+        """Return PDF bytes for the report.
+
+        Requires the optional extra: ``pip install 'whytrend[pdf]'``.
+        """
+        from whytrend.report import PDFRenderer
+
+        return PDFRenderer().render(self)

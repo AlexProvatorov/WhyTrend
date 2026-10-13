@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whytrend"
-version = "0.4.0"
+version = "0.5.0"
 description = "Open Source Framework for Explainable Time Series Analysis"
 readme = "README.md"
 license = "Apache-2.0"
@@ -60,9 +60,60 @@ azure = ["openai>=1.0"]
 openrouter = ["openai>=1.0"]
 trends = ["pytrends>=4.9"]
 parquet = ["pyarrow>=15.0"]
+pdf = ["xhtml2pdf>=0.2.16"]
+reports = ["whytrend[pdf]"]
 all = [
-    "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,azure,openrouter,trends,parquet]",
+    "whytrend[prophet,ruptures,river,ranking,openai,anthropic,gemini,deepseek,azure,openrouter,trends,parquet,pdf]",
 ]
+
+[project.scripts]
+whytrend = "whytrend.cli:main"
+
+[project.entry-points."whytrend.sources"]
+csv = "whytrend.sources:CSVSource"
+pandas = "whytrend.sources:PandasSource"
+parquet = "whytrend.sources:ParquetSource"
+google_trends = "whytrend.sources:GoogleTrends"
+
+[project.entry-points."whytrend.detectors"]
+zscore = "whytrend.detectors:ZScoreDetector"
+prophet = "whytrend.detectors:ProphetDetector"
+ruptures = "whytrend.detectors:RupturesDetector"
+river = "whytrend.detectors:RiverDetector"
+
+[project.entry-points."whytrend.collectors"]
+hacker_news = "whytrend.collectors:HackerNewsCollector"
+wikipedia = "whytrend.collectors:WikipediaCollector"
+google_news = "whytrend.collectors:GoogleNewsCollector"
+reddit = "whytrend.collectors:RedditCollector"
+github_releases = "whytrend.collectors:GitHubReleasesCollector"
+stack_overflow = "whytrend.collectors:StackOverflowCollector"
+rss = "whytrend.collectors:RSSFeedCollector"
+
+[project.entry-points."whytrend.rankers"]
+bm25 = "whytrend.rankers:BM25Ranker"
+embedding = "whytrend.rankers:EmbeddingRanker"
+
+[project.entry-points."whytrend.explainers"]
+llm = "whytrend.explainers:LLMExplainer"
+openai = "whytrend.explainers:OpenAIExplainer"
+anthropic = "whytrend.explainers:AnthropicExplainer"
+gemini = "whytrend.explainers:GeminiExplainer"
+deepseek = "whytrend.explainers:DeepSeekExplainer"
+azure_openai = "whytrend.explainers:AzureOpenAIExplainer"
+openrouter = "whytrend.explainers:OpenRouterExplainer"
+ollama = "whytrend.explainers:OllamaExplainer"
+mock = "whytrend.explainers:MockLLMProvider"
+
+[project.entry-points."whytrend.llm"]
+mock = "whytrend.llm:MockLLMProvider"
+openai = "whytrend.llm:OpenAIProvider"
+anthropic = "whytrend.llm:AnthropicProvider"
+gemini = "whytrend.llm:GeminiProvider"
+deepseek = "whytrend.llm:DeepSeekProvider"
+azure = "whytrend.llm:AzureOpenAIProvider"
+openrouter = "whytrend.llm:OpenRouterProvider"
+ollama = "whytrend.llm:OllamaProvider"
 
 [project.urls]
 Homepage = "https://github.com/AlexProvatorov/WhyTrend"
@@ -94,6 +145,7 @@ module = [
     "anthropic.*",
     "ruptures.*",
     "river.*",
+    "xhtml2pdf.*",
 ]
 ignore_missing_imports = true
 

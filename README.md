@@ -14,9 +14,11 @@ If this project is useful to you, consider giving it a **star** on GitHub — it
 
 - Fluent `Pipeline` API for source → detection → collection → ranking → explanation
 - Pluggable sources, detectors, collectors, rankers, and LLM providers
-- Structured `Report` output (JSON and Markdown)
+- Plugin registry via Python entry points (`whytrend.collectors`, …)
+- Structured `Report` output (JSON, Markdown, HTML, and PDF)
 - Async collectors and LLM calls
 - Works offline with `MockLLMProvider` and local models via `OllamaExplainer`
+- `whytrend` command-line interface over the same plugin registry as `Pipeline`
 
 ## Installation
 
@@ -42,8 +44,58 @@ pip install -e ".[prophet]"       # Prophet detector
 pip install -e ".[ruptures]"      # change-point detector
 pip install -e ".[river]"         # online / streaming detector
 pip install -e ".[ranking]"       # Embedding ranker
+pip install -e ".[pdf]"           # PDF reports (xhtml2pdf)
+pip install -e ".[reports]"       # report extras (currently PDF)
 pip install -e ".[all]"           # everything
 ```
+
+## Quickstart CLI
+
+After install, analysis is one command. The mock explainer does not call the network when collectors are omitted:
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --detector zscore \
+  --set detector.threshold=1.0 \
+  --explainer mock \
+  --out report.md
+```
+
+Omit `--out` to print the report. `--format` is `markdown`, `json`, `html`, or `pdf`. PDF writes bytes and requires `--out` (`pip install 'whytrend[pdf]'`). `--parquet` reads a Parquet file instead of CSV. `--trends KEYWORD` loads Google Trends (`pip install 'whytrend[trends]'`).
+
+`whytrend --help` and `whytrend analyze --help` list the plugins installed in this environment. A plugin that needs constructor arguments stays in that list and is created when every missing value is passed with `--set`. `llm` takes `--provider` instead. Collectors call external sources, so the offline path is the command above with no `--collectors`. `hn` is an alias of `hacker_news`:
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --collectors hn,wikipedia \
+  --ranker bm25 \
+  --format json \
+  --out report.json
+```
+
+Repeat `--set` as `detector.<param>`, `explainer.<param>`, `ranker.<param>`, `collector.<name>.<param>`, `source.<param>`, or `provider.<param>`. `none` clears an optional value (`ranker.top_k=none`). Lists are comma-separated (`collector.github_releases.repos=owner/name`) and dicts are JSON (`detector.prophet_kwargs={"seasonality_mode":"multiplicative"}`).
+
+Cloud explainers read the same environment variables as the Python API below (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and the rest). Ollama needs a local server instead of a key.
+
+RSS, an LLM provider, and an HTML report:
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --collectors rss \
+  --set collector.rss.feed_urls=https://blog.python.org/feeds/posts/default \
+  --explainer llm \
+  --provider mock \
+  --format html \
+  --out report.html
+```
+
+Azure OpenAI needs its deployment name: `--explainer azure_openai --set explainer.deployment=my-deploy` (`AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT`). In-memory dataframes and `client` objects stay in the Python API.
 
 ## Quickstart (CSV, no API keys)
 
@@ -68,6 +120,16 @@ pipeline = (
 report = pipeline.run()
 print(report.executive_summary)
 print(report.to_markdown())
+print(report.to_html())
+```
+
+Export a shareable HTML page or PDF attachment (`whytrend[pdf]` for PDF):
+
+```python
+from pathlib import Path
+
+Path("report.html").write_text(report.to_html(), encoding="utf-8")
+Path("report.pdf").write_bytes(report.to_pdf())  # pip install 'whytrend[pdf]'
 ```
 
 Run the full demo:
@@ -226,6 +288,37 @@ RupturesDetector(algorithm="pelt", model="rbf", penalty=10.0)
 RiverDetector(model="gaussian", threshold=0.95, min_points=10)
 ```
 
+## Writing a WhyTrend plugin
+
+Third-party packages can register components without forking WhyTrend. Direct imports (`from whytrend import ZScoreDetector`) remain the supported API.
+
+Declare an entry point in your package:
+
+```toml
+[project.entry-points."whytrend.collectors"]
+my_news = "mypkg.collectors:MyNewsCollector"
+```
+
+Groups:
+
+- `whytrend.sources`
+- `whytrend.detectors`
+- `whytrend.collectors`
+- `whytrend.rankers`
+- `whytrend.explainers`
+
+Discover and load plugins at runtime:
+
+```python
+from whytrend import list_plugins, load_plugin
+
+detectors = list_plugins("whytrend.detectors")
+Ruptures = load_plugin("whytrend.detectors", "ruptures")
+MyNews = load_plugin("whytrend.collectors", "my_news")
+```
+
+`load_plugin` raises `UnknownPluginError` if the name is missing. Built-in classes are also registered in WhyTrend's own `pyproject.toml`, so names like `zscore` and `hacker_news` resolve the same way.
+
 ## Roadmap
 
 Core MVP is in place. Next focus: **integrations and ecosystem**.
@@ -245,9 +338,9 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [x] Azure OpenAI, OpenRouter
 
 ### v0.5 — Reports and DX
-- [ ] HTML / PDF reports
-- [ ] CLI (`whytrend analyze ...`)
-- [ ] Plugin registry (entry points)
+- [x] HTML / PDF reports
+- [x] CLI (`whytrend analyze ...`)
+- [x] Plugin registry (entry points)
 
 ### v0.6 — Ranking quality
 - [ ] Hybrid ranker (BM25 + embeddings merged with RRF)
