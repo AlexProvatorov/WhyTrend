@@ -120,9 +120,9 @@ class Pipeline:
                     }
                 }
             )
-        if verdict is None:
+        if self._filter is None or verdict is None:
             return explanation
-        return apply_verdict(explanation, verdict, event)
+        return self._filter.cap_confidence(apply_verdict(explanation, verdict, event))
 
     async def _collect_evidences(self, event: Event) -> list[Evidence]:
         if not self._collectors:

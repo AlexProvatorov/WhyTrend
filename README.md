@@ -332,13 +332,13 @@ whytrend analyze \
 
 Ranking only reorders evidence. `EvidenceFilter` runs after the ranker and before the explainer. It drops items below `keep_threshold` (default `0.2`), sorts what remains by `relevance_score`, and sets `Explanation.verdict`:
 
-| Verdict | When |
-| --- | --- |
-| `likely_cause` | At least one kept item is at or above `cause_threshold` (default `0.6`) |
-| `correlation_only` | Items remain, and every one of them is below `cause_threshold` |
-| `evidence_insufficient` | Nothing remains |
+| Verdict | When | Confidence ceiling |
+| --- | --- | --- |
+| `likely_cause` | At least one kept item is at or above `cause_threshold` (default `0.6`) | `1.0` (`likely_cause_cap`) |
+| `correlation_only` | Items remain, and every one of them is below `cause_threshold` | `0.6` (`correlation_only_cap`) |
+| `evidence_insufficient` | Nothing remains | `0.3` (`evidence_insufficient_cap`) |
 
-`likely_cause` is the only verdict whose summary may say "Likely cause". `evidence_insufficient` has no cause. The filter is optional and works with `bm25`, `embedding`, and `hybrid`.
+`likely_cause` is the only verdict whose summary may say "Likely cause". `evidence_insufficient` has no cause. After the explainer returns, the filter clamps `Explanation.confidence` and every `Cause.score` to that verdict's ceiling. A likely cause can still be `1.0`. A pipeline with no filter leaves the explainer's confidence unchanged. When a number is lowered, the explanation metadata includes `confidence_capped: true`. The filter is optional and works with `bm25`, `embedding`, and `hybrid`.
 
 ```python
 from whytrend import EvidenceFilter
@@ -353,7 +353,8 @@ whytrend analyze \
   --ranker bm25 \
   --filter evidence \
   --set filter.keep_threshold=0.3 \
-  --set filter.cause_threshold=0.7
+  --set filter.cause_threshold=0.7 \
+  --set filter.correlation_only_cap=0.5
 ```
 
 ## Writing a WhyTrend plugin
@@ -415,7 +416,7 @@ Core MVP is in place. Next focus: **ranking quality**, then explanations you can
 - [x] Hybrid ranker (BM25 + embeddings merged with RRF)
 - [x] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
 - [x] Time proximity in the relevance score (`published_at` inside the event window, not only lexical match)
-- [ ] Confidence cap: explainer confidence cannot exceed the evidence-filter verdict
+- [x] Confidence cap: explainer confidence cannot exceed the evidence-filter verdict
 
 ### v0.7 — Explanations you can check
 - [ ] Known-event eval set (expected verdicts for releases, news spikes, and empty background)

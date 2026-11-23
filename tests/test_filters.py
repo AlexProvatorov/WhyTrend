@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from tests.stubs import StubCollector, StubDetector, StubExplainer, StubSource
-from whytrend.core import AnomalyType, Event, Evidence, EvidenceVerdict, Explanation, Report
+from whytrend.core import AnomalyType, Cause, Event, Evidence, EvidenceVerdict, Explanation, Report
 from whytrend.explainers import LLMExplainer
 from whytrend.filters import EvidenceFilter
 from whytrend.llm import MockLLMProvider
@@ -72,6 +72,8 @@ def test_filter_validation() -> None:
         EvidenceFilter(keep_threshold=-0.1)
     with pytest.raises(ValueError, match="cause_threshold must be >= keep_threshold"):
         EvidenceFilter(keep_threshold=0.8, cause_threshold=0.4)
+    with pytest.raises(ValueError, match="correlation_only_cap must be between 0 and 1"):
+        EvidenceFilter(correlation_only_cap=1.2)
 
 
 @pytest.mark.asyncio
@@ -181,6 +183,8 @@ async def test_pipeline_without_filter_leaves_verdict_unset(
 
     assert report.explanations[0].verdict is None
     assert report.explanations[0].summary == "Explained Python spike."
+    assert report.explanations[0].confidence == 0.95
+    assert "confidence_capped" not in report.explanations[0].metadata
     assert report.metadata["filter"] is None
 
 
@@ -234,3 +238,149 @@ def test_duplicate_filter_raises(pipeline_components) -> None:
         pipeline.add_filter(EvidenceFilter())
 
     pipeline.add_explainer(explainer)
+
+
+def _overconfident(verdict: EvidenceVerdict | None) -> Explanation:
+    return Explanation(
+        event_id="evt-1",
+        anomaly_type=AnomalyType.SPIKE,
+        confidence=0.95,
+        verdict=verdict,
+        summary="Likely cause: interest in 'Python' spiked due to a headline.",
+        causes=[
+            Cause(
+                source="hacker_news",
+                score=0.9,
+                url="https://example.com/story",
+                title="A headline",
+                summary="details",
+            )
+        ],
+    )
+
+
+def test_cap_uses_the_verdict_not_the_summary() -> None:
+    evidence_filter = EvidenceFilter()
+    untouched = _overconfident(None)
+
+    assert evidence_filter.cap_confidence(untouched) is untouched
+
+    likely = evidence_filter.cap_confidence(_overconfident(EvidenceVerdict.LIKELY_CAUSE))
+    assert likely.confidence == 0.95
+    assert likely.causes[0].score == 0.9
+    assert "confidence_capped" not in likely.metadata
+
+    correlation = evidence_filter.cap_confidence(_overconfident(EvidenceVerdict.CORRELATION_ONLY))
+    assert correlation.confidence == 0.6
+    assert correlation.causes[0].score == 0.6
+    assert correlation.metadata["confidence_capped"] is True
+    assert correlation.summary.startswith("Likely cause")
+
+    custom = EvidenceFilter(correlation_only_cap=0.5).cap_confidence(
+        _overconfident(EvidenceVerdict.CORRELATION_ONLY)
+    )
+    assert custom.confidence == 0.5
+    assert custom.causes[0].score == 0.5
+
+    insufficient = evidence_filter.cap_confidence(
+        _overconfident(EvidenceVerdict.EVIDENCE_INSUFFICIENT)
+    )
+    assert insufficient.confidence == 0.3
+    assert insufficient.causes[0].score == 0.3
+    assert insufficient.metadata["confidence_capped"] is True
+
+
+def test_cap_leaves_values_that_are_already_under_the_ceiling() -> None:
+    explanation = Explanation(
+        event_id="evt-1",
+        anomaly_type=AnomalyType.SPIKE,
+        confidence=0.4,
+        verdict=EvidenceVerdict.CORRELATION_ONLY,
+        summary="Correlation only.",
+        causes=[
+            Cause(
+                source="hacker_news",
+                score=0.2,
+                url="https://example.com/story",
+                title="A headline",
+            )
+        ],
+    )
+
+    assert EvidenceFilter().cap_confidence(explanation) is explanation
+
+
+def test_capped_confidence_is_what_the_report_renders() -> None:
+    capped = EvidenceFilter().cap_confidence(_overconfident(EvidenceVerdict.CORRELATION_ONLY))
+    report = Report(
+        executive_summary=capped.summary,
+        explanations=[capped],
+        series_name="python_interest",
+        keyword="Python",
+    )
+
+    markdown = MarkdownRenderer().render(report)
+    html = HTMLRenderer().render(report)
+    assert "- **Confidence:** 0.60" in markdown
+    assert "(0.60)" in markdown
+    assert "0.95" not in markdown
+    assert "<strong>Confidence:</strong> 0.60" in html
+    restored = Report.model_validate_json(JSONRenderer().render(report))
+    assert restored.explanations[0].confidence == 0.6
+    assert restored.explanations[0].causes[0].score == 0.6
+
+
+class _OverconfidentExplainer(StubExplainer):
+    async def explain(self, event, evidences):
+        explanation = await super().explain(event, evidences)
+        cause = Cause(
+            source="hacker_news",
+            score=0.9,
+            url="https://example.com/story",
+            title="A headline",
+            summary="details",
+        )
+        return explanation.model_copy(update={"confidence": 0.95, "causes": [cause]})
+
+
+@pytest.mark.asyncio
+async def test_pipeline_caps_correlation_and_insufficient_confidence(
+    python_interest_series,
+    spike_detection,
+) -> None:
+    async def run(score: float) -> Explanation:
+        pipeline = (
+            Pipeline()
+            .add_source(StubSource(python_interest_series))
+            .add_detector(StubDetector([spike_detection]))
+            .add_collector(StubCollector([_evidence("Python weekly", score)]))
+            .add_filter(EvidenceFilter())
+            .add_explainer(_OverconfidentExplainer())
+        )
+        return (await pipeline.arun()).explanations[0]
+
+    correlation = await run(0.4)
+    assert correlation.verdict is EvidenceVerdict.CORRELATION_ONLY
+    assert correlation.confidence == 0.6
+    assert correlation.causes[0].score == 0.6
+    assert correlation.metadata["confidence_capped"] is True
+    rendered = MarkdownRenderer().render(
+        Report(
+            executive_summary=correlation.summary,
+            explanations=[correlation],
+            keyword="Python",
+        )
+    )
+    assert "- **Confidence:** 0.60" in rendered
+
+    insufficient = await run(0.05)
+    assert insufficient.verdict is EvidenceVerdict.EVIDENCE_INSUFFICIENT
+    assert insufficient.confidence == 0.3
+    assert insufficient.causes == []
+    assert insufficient.metadata["confidence_capped"] is True
+
+    likely = await run(0.9)
+    assert likely.verdict is EvidenceVerdict.LIKELY_CAUSE
+    assert likely.confidence == 0.95
+    assert likely.causes[0].score == 0.9
+    assert "confidence_capped" not in likely.metadata

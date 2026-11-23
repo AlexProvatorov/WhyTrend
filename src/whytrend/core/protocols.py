@@ -160,6 +160,10 @@ class Filter(Protocol):
         """Return the kept evidence and the verdict for what remains."""
         ...
 
+    def cap_confidence(self, explanation: Explanation) -> Explanation:
+        """Clamp confidence and cause scores to the ceiling for ``explanation.verdict``."""
+        ...
+
 
 class BaseRanker(ABC):
     """Optional ABC for ranker implementations."""
@@ -184,6 +188,10 @@ class BaseFilter(ABC):
 
     @abstractmethod
     def filter(self, evidences: list[Evidence]) -> tuple[list[Evidence], EvidenceVerdict]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def cap_confidence(self, explanation: Explanation) -> Explanation:
         raise NotImplementedError
 
 
