@@ -8,7 +8,7 @@ from whytrend.core import AnomalyType, Evidence
 from whytrend.detectors import ZScoreDetector
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker, EmbeddingRanker, HybridRanker
-from whytrend.rankers._utils import build_query
+from whytrend.rankers._utils import apply_time_proximity, build_query
 from whytrend.sources import PandasSource
 
 
@@ -177,6 +177,162 @@ def test_ranker_validation() -> None:
 
     with pytest.raises(ValueError, match="model_name cannot be empty"):
         HybridRanker(model_name="  ")
+
+    with pytest.raises(ValueError, match="time_weight must be between 0 and 1"):
+        BM25Ranker(time_weight=-0.1)
+
+    with pytest.raises(ValueError, match="time_weight must be between 0 and 1"):
+        EmbeddingRanker(time_weight=1.1)
+
+    with pytest.raises(ValueError, match="time_weight must be between 0 and 1"):
+        HybridRanker(time_weight=1.5)
+
+
+def _same_text_pair(event) -> list[Evidence]:
+    """Edge item first, so a stable text-only sort would keep it ahead."""
+    shared = {
+        "title": "Python release notes",
+        "snippet": "Python release notes",
+        "source_name": "hacker_news",
+    }
+    return [
+        Evidence(
+            url="https://example.com/edge",
+            published_at=event.window_start,
+            **shared,
+        ),
+        Evidence(
+            url="https://example.com/near",
+            published_at=event.timestamp,
+            **shared,
+        ),
+    ]
+
+
+class _FlatEmbeddingModel:
+    def encode(self, sentences, normalize_embeddings=True):
+        return np.vstack([np.array([1.0, 0.0], dtype=float) for _ in sentences])
+
+
+def _scored(url: str, published_at: datetime | None, score: float = 1.0) -> Evidence:
+    return Evidence(
+        title="Python release notes",
+        url=url,
+        snippet="Python release notes",
+        source_name="hacker_news",
+        published_at=published_at,
+        relevance_score=score,
+    )
+
+
+def test_time_weight_zero_leaves_scores_and_order_unchanged(ranking_event) -> None:
+    evidences = _same_text_pair(ranking_event)
+    baseline = BM25Ranker().rank(ranking_event, evidences)
+    unchanged = BM25Ranker(time_weight=0).rank(ranking_event, evidences)
+
+    assert [item.url for item in unchanged] == [item.url for item in baseline]
+    assert [item.relevance_score for item in unchanged] == [
+        item.relevance_score for item in baseline
+    ]
+
+    model = _FlatEmbeddingModel()
+    base_hybrid = HybridRanker(model=model).rank(ranking_event, evidences)
+    zero_hybrid = HybridRanker(model=model, time_weight=0).rank(ranking_event, evidences)
+    assert [item.url for item in zero_hybrid] == [item.url for item in base_hybrid]
+    assert [item.relevance_score for item in zero_hybrid] == [
+        item.relevance_score for item in base_hybrid
+    ]
+
+
+def test_time_factor_is_one_at_the_event_and_zero_at_the_edges(ranking_event) -> None:
+    midpoint = datetime(2026, 1, 2, 12, tzinfo=UTC)
+    outside = datetime(2025, 12, 29, tzinfo=UTC)
+    naive_event_time = datetime(2026, 1, 4)
+    items = [
+        _scored("https://example.com/event", ranking_event.timestamp),
+        _scored("https://example.com/start", ranking_event.window_start),
+        _scored("https://example.com/end", ranking_event.window_end),
+        _scored("https://example.com/undated", None, score=0.4),
+        _scored("https://example.com/mid", midpoint),
+        _scored("https://example.com/outside", outside),
+        _scored("https://example.com/naive", naive_event_time),
+    ]
+
+    unchanged = apply_time_proximity(ranking_event, items, 0)
+    assert unchanged is items
+
+    adjusted = apply_time_proximity(ranking_event, items, 1)
+    scores = [item.relevance_score for item in adjusted]
+    assert scores == pytest.approx([1.0, 0.0, 0.0, 0.4, 0.5, 0.0, 1.0])
+    assert all(0.0 <= score <= 1.0 for score in scores)
+
+    half = apply_time_proximity(ranking_event, items[:2], 0.5)
+    assert half[0].relevance_score == pytest.approx(1.0)
+    assert half[1].relevance_score == pytest.approx(0.5)
+
+
+def test_nearer_publication_outranks_the_window_edge(ranking_event) -> None:
+    evidences = _same_text_pair(ranking_event)
+
+    for ranker in (
+        BM25Ranker(time_weight=1),
+        EmbeddingRanker(model=_FlatEmbeddingModel(), time_weight=1),
+        HybridRanker(model=_FlatEmbeddingModel(), time_weight=1, top_k=None),
+    ):
+        ranked = ranker.rank(ranking_event, evidences)
+        assert ranked[0].url == "https://example.com/near"
+        assert ranked[0].relevance_score > ranked[1].relevance_score
+        assert all(0.0 <= item.relevance_score <= 1.0 for item in ranked)
+
+    fused = HybridRanker(model=_FlatEmbeddingModel(), time_weight=1, top_k=None).rank(
+        ranking_event,
+        evidences,
+    )
+    assert fused[0].relevance_score == 1.0
+    # Rank 2 on both lists. Time already changed that order; RRF does not apply it again.
+    assert fused[1].relevance_score == pytest.approx(61 / 62)
+
+
+def test_missing_published_at_is_not_penalised(ranking_event) -> None:
+    edge, _near = _same_text_pair(ranking_event)
+    undated = Evidence(
+        title=edge.title,
+        url="https://example.com/undated",
+        snippet=edge.snippet,
+        source_name=edge.source_name,
+        published_at=None,
+    )
+    evidences = [edge, undated]
+    before = {
+        item.url: item.relevance_score for item in BM25Ranker().rank(ranking_event, evidences)
+    }
+    after = BM25Ranker(time_weight=1).rank(ranking_event, evidences)
+
+    undated_after = next(item for item in after if item.published_at is None)
+    assert undated_after.relevance_score == before[undated_after.url]
+    assert undated_after.relevance_score > after[-1].relevance_score
+
+
+def test_items_outside_the_window_sink_and_are_kept(ranking_event) -> None:
+    outside = Evidence(
+        title="Python release notes",
+        url="https://example.com/outside",
+        snippet="Python release notes",
+        source_name="hacker_news",
+        published_at=datetime(2025, 12, 29, tzinfo=UTC),
+    )
+    near = Evidence(
+        title="Python release notes",
+        url="https://example.com/near",
+        snippet="Python release notes",
+        source_name="hacker_news",
+        published_at=ranking_event.timestamp,
+    )
+
+    ranked = BM25Ranker(time_weight=1, top_k=None).rank(ranking_event, [outside, near])
+
+    assert [item.url for item in ranked] == [near.url, outside.url]
+    assert ranked[1].relevance_score == 0.0
 
 
 @pytest.mark.asyncio

@@ -307,6 +307,27 @@ HybridRanker(top_k=5)  # pip install 'whytrend[ranking]'
 
 `whytrend analyze --ranker bm25`, `--ranker embedding`, and `--ranker hybrid` each fill the pipeline's single ranker slot.
 
+Each ranker takes `time_weight` (default `0.0`). At `0`, scores stay on the text match. Above that, an item published at `event.timestamp` keeps its score, and one at `window_start` or `window_end` keeps less:
+
+```text
+adjusted = relevance * ((1 - time_weight) + time_weight * time_factor)
+```
+
+`time_factor` is 1 on the event timestamp and 0 at either edge of the window. The result stays in `[0, 1]`. A missing `published_at` is not penalised, so an undated page stays eligible and the evidence filter decides whether it is a cause. An item outside the window scores lower as `time_weight` grows; the ranker does not drop it. `HybridRanker` passes `time_weight` into BM25 and embeddings before reciprocal rank fusion, and the fusion formula itself stays rank positions only.
+
+```python
+BM25Ranker(top_k=5, time_weight=0.5)
+HybridRanker(top_k=5, time_weight=0.5)  # pip install 'whytrend[ranking]'
+```
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --ranker hybrid \
+  --set ranker.time_weight=0.5
+```
+
 ### Evidence filter
 
 Ranking only reorders evidence. `EvidenceFilter` runs after the ranker and before the explainer. It drops items below `keep_threshold` (default `0.2`), sorts what remains by `relevance_score`, and sets `Explanation.verdict`:
@@ -393,7 +414,7 @@ Core MVP is in place. Next focus: **ranking quality**, then explanations you can
 ### v0.6 — Ranking quality
 - [x] Hybrid ranker (BM25 + embeddings merged with RRF)
 - [x] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
-- [ ] Time proximity in the relevance score (`published_at` inside the event window, not only lexical match)
+- [x] Time proximity in the relevance score (`published_at` inside the event window, not only lexical match)
 - [ ] Confidence cap: explainer confidence cannot exceed the evidence-filter verdict
 
 ### v0.7 — Explanations you can check

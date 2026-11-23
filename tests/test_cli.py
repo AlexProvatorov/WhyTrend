@@ -276,6 +276,25 @@ def test_hybrid_ranker_is_constructed_from_the_cli() -> None:
     assert pipeline._ranker._top_k == 3
 
 
+def test_ranker_time_weight_is_set_from_the_cli() -> None:
+    args = build_parser().parse_args(
+        [
+            "analyze",
+            "--csv",
+            str(FIXTURE_CSV),
+            "--ranker",
+            "bm25",
+            "--set",
+            "ranker.time_weight=0.5",
+        ]
+    )
+    pipeline = build_pipeline(args)
+
+    assert pipeline._ranker is not None
+    assert pipeline._ranker.name == "bm25"
+    assert pipeline._ranker._time_weight == 0.5
+
+
 def test_azure_explainer_requires_deployment() -> None:
     code, _stdout, stderr = _invoke(
         ["analyze", "--csv", str(FIXTURE_CSV), "--explainer", "azure_openai"]

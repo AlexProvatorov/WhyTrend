@@ -9,7 +9,12 @@ import numpy as np
 from whytrend.core.models import Event, Evidence
 from whytrend.core.protocols import BaseRanker
 from whytrend.detectors._utils import clamp_score
-from whytrend.rankers._utils import build_query, evidence_text
+from whytrend.rankers._utils import (
+    apply_time_proximity,
+    build_query,
+    evidence_text,
+    validate_time_weight,
+)
 
 
 class _EmbeddingModel(Protocol):
@@ -25,6 +30,7 @@ class EmbeddingRanker(BaseRanker):
         model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
         top_k: int | None = 10,
         model: _EmbeddingModel | None = None,
+        time_weight: float = 0.0,
     ) -> None:
         if top_k is not None and top_k < 1:
             msg = "top_k must be >= 1 when provided"
@@ -32,10 +38,12 @@ class EmbeddingRanker(BaseRanker):
         if not model_name.strip():
             msg = "model_name cannot be empty"
             raise ValueError(msg)
+        validate_time_weight(time_weight)
 
         self._model_name = model_name
         self._top_k = top_k
         self._model = model
+        self._time_weight = time_weight
 
     @property
     def name(self) -> str:
@@ -57,10 +65,14 @@ class EmbeddingRanker(BaseRanker):
         ]
 
         ranked = sorted(
-            [
-                evidence.model_copy(update={"relevance_score": score})
-                for evidence, score in zip(evidences, scores, strict=True)
-            ],
+            apply_time_proximity(
+                event,
+                [
+                    evidence.model_copy(update={"relevance_score": score})
+                    for evidence, score in zip(evidences, scores, strict=True)
+                ],
+                self._time_weight,
+            ),
             key=lambda evidence: evidence.relevance_score,
             reverse=True,
         )

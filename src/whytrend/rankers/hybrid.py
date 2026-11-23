@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from whytrend.core.models import Event, Evidence
 from whytrend.core.protocols import BaseRanker
-from whytrend.rankers._utils import apply_relevance_scores
+from whytrend.rankers._utils import apply_relevance_scores, validate_time_weight
 from whytrend.rankers.bm25 import BM25Ranker
 from whytrend.rankers.embedding import EmbeddingRanker, _EmbeddingModel
 
@@ -15,9 +15,10 @@ _RRF_K = 60
 class HybridRanker(BaseRanker):
     """Fuse BM25 and embedding rankings with reciprocal rank fusion.
 
-    Both rankers score the full evidence list. RRF combines those rank
-    positions, scales the result into ``[0, 1]``, then ``top_k`` truncates
-    the fused list. Rank 1 on every list scores ``1.0``.
+    Both rankers score the full evidence list and apply ``time_weight``
+    before fusion, so RRF sees that order. RRF itself stays a rank-position
+    formula. It scales into ``[0, 1]``, then ``top_k`` truncates the fused
+    list. Rank 1 on every list scores ``1.0``.
     """
 
     def __init__(
@@ -26,14 +27,22 @@ class HybridRanker(BaseRanker):
         model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
         top_k: int | None = 10,
         model: _EmbeddingModel | None = None,
+        time_weight: float = 0.0,
     ) -> None:
         if top_k is not None and top_k < 1:
             msg = "top_k must be >= 1 when provided"
             raise ValueError(msg)
+        validate_time_weight(time_weight)
         self._top_k = top_k
+        self._time_weight = time_weight
         # Full lists: truncating before fusion would drop a hit that only one method ranks highly.
-        self._bm25 = BM25Ranker(top_k=None)
-        self._embedding = EmbeddingRanker(model_name=model_name, top_k=None, model=model)
+        self._bm25 = BM25Ranker(top_k=None, time_weight=time_weight)
+        self._embedding = EmbeddingRanker(
+            model_name=model_name,
+            top_k=None,
+            model=model,
+            time_weight=time_weight,
+        )
 
     @property
     def name(self) -> str:
