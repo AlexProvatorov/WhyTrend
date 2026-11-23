@@ -76,10 +76,16 @@ class HTMLRenderer(BaseReportRenderer):
             f"<li><strong>Event ID:</strong> {escape(explanation.event_id)}</li>",
             f"<li><strong>Anomaly type:</strong> {escape(explanation.anomaly_type.value)}</li>",
             f"<li><strong>Confidence:</strong> {explanation.confidence:.2f}</li>",
-            "</ul>",
-            f"<p>{escape(explanation.summary)}</p>",
-            "<h4>Causes</h4>",
         ]
+        if explanation.verdict is not None:
+            parts.append(f"<li><strong>Verdict:</strong> {escape(explanation.verdict.value)}</li>")
+        parts.extend(
+            [
+                "</ul>",
+                f"<p>{escape(explanation.summary)}</p>",
+                "<h4>Causes</h4>",
+            ]
+        )
         if not explanation.causes:
             parts.append('<p class="empty">No causes were identified.</p>')
             return parts

@@ -10,6 +10,7 @@ PLUGIN_GROUPS: Final[tuple[str, ...]] = (
     "whytrend.detectors",
     "whytrend.collectors",
     "whytrend.rankers",
+    "whytrend.filters",
     "whytrend.explainers",
     "whytrend.llm",
 )
@@ -19,6 +20,7 @@ _GROUP_ALIASES: Final[dict[str, str]] = {
     "detectors": "whytrend.detectors",
     "collectors": "whytrend.collectors",
     "rankers": "whytrend.rankers",
+    "filters": "whytrend.filters",
     "explainers": "whytrend.explainers",
     "llm": "whytrend.llm",
 }

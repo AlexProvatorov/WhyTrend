@@ -22,6 +22,7 @@ from whytrend.explainers import (
     OpenAIExplainer,
     OpenRouterExplainer,
 )
+from whytrend.filters import EvidenceFilter
 from whytrend.pipeline import Pipeline
 from whytrend.plugins import PluginError, UnknownPluginError, list_plugins, load_plugin
 from whytrend.rankers import BM25Ranker, EmbeddingRanker, HybridRanker
@@ -37,6 +38,7 @@ __all__ = [
     "CSVSource",
     "DeepSeekExplainer",
     "EmbeddingRanker",
+    "EvidenceFilter",
     "GeminiExplainer",
     "GitHubReleasesCollector",
     "GoogleNewsCollector",

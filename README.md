@@ -307,6 +307,34 @@ HybridRanker(top_k=5)  # pip install 'whytrend[ranking]'
 
 `whytrend analyze --ranker bm25`, `--ranker embedding`, and `--ranker hybrid` each fill the pipeline's single ranker slot.
 
+### Evidence filter
+
+Ranking only reorders evidence. `EvidenceFilter` runs after the ranker and before the explainer. It drops items below `keep_threshold` (default `0.2`), sorts what remains by `relevance_score`, and sets `Explanation.verdict`:
+
+| Verdict | When |
+| --- | --- |
+| `likely_cause` | At least one kept item is at or above `cause_threshold` (default `0.6`) |
+| `correlation_only` | Items remain, and every one of them is below `cause_threshold` |
+| `evidence_insufficient` | Nothing remains |
+
+`likely_cause` is the only verdict whose summary may say "Likely cause". `evidence_insufficient` has no cause. The filter is optional and works with `bm25`, `embedding`, and `hybrid`.
+
+```python
+from whytrend import EvidenceFilter
+
+EvidenceFilter(keep_threshold=0.2, cause_threshold=0.6)
+```
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --ranker bm25 \
+  --filter evidence \
+  --set filter.keep_threshold=0.3 \
+  --set filter.cause_threshold=0.7
+```
+
 ## Writing a WhyTrend plugin
 
 Third-party packages can register components without forking WhyTrend. Direct imports (`from whytrend import ZScoreDetector`) remain the supported API.
@@ -324,6 +352,7 @@ Groups:
 - `whytrend.detectors`
 - `whytrend.collectors`
 - `whytrend.rankers`
+- `whytrend.filters`
 - `whytrend.explainers`
 
 Discover and load plugins at runtime:
@@ -363,7 +392,7 @@ Core MVP is in place. Next focus: **ranking quality**, then explanations you can
 
 ### v0.6 — Ranking quality
 - [x] Hybrid ranker (BM25 + embeddings merged with RRF)
-- [ ] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
+- [x] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
 - [ ] Time proximity in the relevance score (`published_at` inside the event window, not only lexical match)
 - [ ] Confidence cap: explainer confidence cannot exceed the evidence-filter verdict
 

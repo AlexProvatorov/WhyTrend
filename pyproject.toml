@@ -95,6 +95,9 @@ bm25 = "whytrend.rankers:BM25Ranker"
 embedding = "whytrend.rankers:EmbeddingRanker"
 hybrid = "whytrend.rankers:HybridRanker"
 
+[project.entry-points."whytrend.filters"]
+evidence = "whytrend.filters:EvidenceFilter"
+
 [project.entry-points."whytrend.explainers"]
 llm = "whytrend.explainers:LLMExplainer"
 openai = "whytrend.explainers:OpenAIExplainer"

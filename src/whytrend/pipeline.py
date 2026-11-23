@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 from typing import Self
 
+from whytrend.core.enums import EvidenceVerdict
 from whytrend.core.models import Event, Evidence, Explanation, Report
-from whytrend.core.protocols import Collector, Detector, Explainer, Ranker, Source
+from whytrend.core.protocols import Collector, Detector, Explainer, Filter, Ranker, Source
 from whytrend.core.series import TimeSeries
 from whytrend.events.builder import EventBuilder
-from whytrend.llm._parsing import fallback_explanation
+from whytrend.llm._parsing import apply_verdict, fallback_explanation
 
 
 class Pipeline:
@@ -20,6 +21,7 @@ class Pipeline:
         self._detector: Detector | None = None
         self._collectors: list[Collector] = []
         self._ranker: Ranker | None = None
+        self._filter: Filter | None = None
         self._explainer: Explainer | None = None
         self._event_builder = EventBuilder(window_days=window_days)
 
@@ -46,6 +48,13 @@ class Pipeline:
             msg = "ranker is already configured"
             raise ValueError(msg)
         self._ranker = ranker
+        return self
+
+    def add_filter(self, evidence_filter: Filter) -> Self:
+        if self._filter is not None:
+            msg = "filter is already configured"
+            raise ValueError(msg)
+        self._filter = evidence_filter
         return self
 
     def add_explainer(self, explainer: Explainer) -> Self:
@@ -86,6 +95,7 @@ class Pipeline:
                 "source": source.name,
                 "explainer": explainer.name,
                 "ranker": self._ranker.name if self._ranker is not None else None,
+                "filter": self._filter.name if self._filter is not None else None,
                 "collectors": [collector.name for collector in self._collectors],
                 "event_count": len(events),
             },
@@ -95,11 +105,14 @@ class Pipeline:
         evidences = await self._collect_evidences(event)
         if self._ranker is not None:
             evidences = self._ranker.rank(event, evidences)
+        verdict: EvidenceVerdict | None = None
+        if self._filter is not None:
+            evidences, verdict = self._filter.filter(evidences)
         try:
-            return await explainer.explain(event, evidences)
+            explanation = await explainer.explain(event, evidences)
         except Exception as exc:
             explanation = fallback_explanation(event, evidences)
-            return explanation.model_copy(
+            explanation = explanation.model_copy(
                 update={
                     "metadata": {
                         **explanation.metadata,
@@ -107,6 +120,9 @@ class Pipeline:
                     }
                 }
             )
+        if verdict is None:
+            return explanation
+        return apply_verdict(explanation, verdict, event)
 
     async def _collect_evidences(self, event: Event) -> list[Evidence]:
         if not self._collectors:

@@ -13,6 +13,14 @@ class AnomalyType(StrEnum):
     SEASONALITY_BREAK = "seasonality_break"
 
 
+class EvidenceVerdict(StrEnum):
+    """How strongly the remaining evidence supports a cause."""
+
+    LIKELY_CAUSE = "likely_cause"
+    CORRELATION_ONLY = "correlation_only"
+    EVIDENCE_INSUFFICIENT = "evidence_insufficient"
+
+
 class DetectionSeverity(StrEnum):
     """Relative severity of a detection."""
 

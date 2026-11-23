@@ -122,6 +122,12 @@ class AnalyzeCommand:
             help=f"Optional ranker plugin. Available: {_names('rankers')}",
         )
         parser.add_argument(
+            "--filter",
+            type=_plugin_arg("filters"),
+            metavar="NAME",
+            help=f"Optional evidence filter. Available: {_names('filters')}",
+        )
+        parser.add_argument(
             "--format",
             choices=sorted(_FORMATS),
             default="markdown",

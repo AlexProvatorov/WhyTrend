@@ -235,6 +235,28 @@ def test_llm_mock_provider_writes_report(tmp_path: Path) -> None:
     assert "Python" in out.read_text(encoding="utf-8")
 
 
+def test_evidence_filter_is_constructed_from_the_cli() -> None:
+    args = build_parser().parse_args(
+        [
+            "analyze",
+            "--csv",
+            str(FIXTURE_CSV),
+            "--filter",
+            "evidence",
+            "--set",
+            "filter.keep_threshold=0.3",
+            "--set",
+            "filter.cause_threshold=0.7",
+        ]
+    )
+    pipeline = build_pipeline(args)
+
+    assert pipeline._filter is not None
+    assert pipeline._filter.name == "evidence"
+    assert pipeline._filter._keep_threshold == 0.3
+    assert pipeline._filter._cause_threshold == 0.7
+
+
 def test_hybrid_ranker_is_constructed_from_the_cli() -> None:
     args = build_parser().parse_args(
         [

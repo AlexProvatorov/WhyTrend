@@ -49,10 +49,10 @@ class MarkdownRenderer(BaseReportRenderer):
             f"- **Event ID:** {explanation.event_id}",
             f"- **Anomaly type:** {explanation.anomaly_type.value}",
             f"- **Confidence:** {explanation.confidence:.2f}",
-            "",
-            explanation.summary,
-            "",
         ]
+        if explanation.verdict is not None:
+            lines.append(f"- **Verdict:** {explanation.verdict.value}")
+        lines.extend(["", explanation.summary, ""])
 
         if explanation.causes:
             lines.append("#### Causes")

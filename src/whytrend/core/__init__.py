@@ -1,6 +1,6 @@
 """Core domain models, time series container, and component protocols."""
 
-from whytrend.core.enums import AnomalyType, DetectionSeverity
+from whytrend.core.enums import AnomalyType, DetectionSeverity, EvidenceVerdict
 from whytrend.core.models import (
     Cause,
     Detection,
@@ -17,6 +17,7 @@ from whytrend.core.protocols import (
     BaseCollector,
     BaseDetector,
     BaseExplainer,
+    BaseFilter,
     BaseLLMProvider,
     BaseRanker,
     BaseReportRenderer,
@@ -24,6 +25,7 @@ from whytrend.core.protocols import (
     Collector,
     Detector,
     Explainer,
+    Filter,
     LLMProvider,
     Ranker,
     ReportRenderer,
@@ -36,6 +38,7 @@ __all__ = [
     "BaseCollector",
     "BaseDetector",
     "BaseExplainer",
+    "BaseFilter",
     "BaseLLMProvider",
     "BaseRanker",
     "BaseReportRenderer",
@@ -48,8 +51,10 @@ __all__ = [
     "Detector",
     "Event",
     "Evidence",
+    "EvidenceVerdict",
     "Explainer",
     "Explanation",
+    "Filter",
     "LLMProvider",
     "Ranker",
     "Report",
