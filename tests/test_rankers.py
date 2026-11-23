@@ -7,7 +7,8 @@ from tests.stubs import StubCollector, StubExplainer
 from whytrend.core import AnomalyType, Evidence
 from whytrend.detectors import ZScoreDetector
 from whytrend.pipeline import Pipeline
-from whytrend.rankers import BM25Ranker, EmbeddingRanker
+from whytrend.rankers import BM25Ranker, EmbeddingRanker, HybridRanker
+from whytrend.rankers._utils import build_query
 from whytrend.sources import PandasSource
 
 
@@ -79,12 +80,103 @@ def test_embedding_ranker_orders_relevant_evidence_first(ranking_event, sample_e
     assert ranked[1].relevance_score == 0.5
 
 
+def _specialist_evidences() -> list[Evidence]:
+    """Lexical hit, paraphrase, and an article that is only mediocre for both."""
+    return [
+        Evidence(
+            title="Python spike exact match",
+            url="https://example.com/lexical",
+            snippet="Python Python spike spike",
+            source_name="hacker_news",
+        ),
+        Evidence(
+            title="mediocre Python mention",
+            url="https://example.com/mediocre",
+            snippet="a short note",
+            source_name="wikipedia",
+        ),
+        Evidence(
+            title="language release paraphrase",
+            url="https://example.com/paraphrase",
+            snippet="runtime performance",
+            source_name="blog",
+        ),
+    ]
+
+
+def _specialist_model(event):
+    """Align the query with the paraphrase and push the lexical title the other way."""
+    query = build_query(event)
+
+    class _Model:
+        def encode(self, sentences, normalize_embeddings=True):
+            vectors = []
+            for sentence in sentences:
+                if sentence == query or "paraphrase" in sentence:
+                    vector = (1.0, 0.0)
+                elif "mediocre" in sentence:
+                    vector = (0.0, 1.0)
+                else:
+                    vector = (-1.0, 0.0)
+                vectors.append(np.array(vector, dtype=float))
+            return np.vstack(vectors)
+
+    return _Model()
+
+
+def test_hybrid_ranker_lets_a_single_method_hit_beat_a_mediocre_pair(ranking_event) -> None:
+    evidences = _specialist_evidences()
+    ranked = HybridRanker(model=_specialist_model(ranking_event), top_k=None).rank(
+        ranking_event,
+        evidences,
+    )
+
+    titles = [item.title for item in ranked]
+    mediocre_at = titles.index("mediocre Python mention")
+    assert titles.index("Python spike exact match") < mediocre_at
+    assert titles.index("language release paraphrase") < mediocre_at
+    scores = [item.relevance_score for item in ranked]
+    assert scores == sorted(scores, reverse=True)
+    assert all(0.0 <= score <= 1.0 for score in scores)
+    assert ranked[0].relevance_score > ranked[-1].relevance_score
+
+
+def test_hybrid_ranker_truncates_to_top_k(ranking_event) -> None:
+    ranked = HybridRanker(model=_specialist_model(ranking_event), top_k=2).rank(
+        ranking_event,
+        _specialist_evidences(),
+    )
+
+    assert len(ranked) == 2
+    assert {item.title for item in ranked} == {
+        "Python spike exact match",
+        "language release paraphrase",
+    }
+    assert ranked[0].relevance_score >= ranked[1].relevance_score
+
+
+def test_hybrid_ranker_returns_empty_for_no_evidence(ranking_event, monkeypatch) -> None:
+    def fail_load(self: EmbeddingRanker) -> None:
+        msg = "sentence-transformer model should not be loaded"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(EmbeddingRanker, "_load_model", fail_load)
+
+    assert HybridRanker().rank(ranking_event, []) == []
+
+
 def test_ranker_validation() -> None:
     with pytest.raises(ValueError, match="top_k must be >= 1"):
         BM25Ranker(top_k=0)
 
+    with pytest.raises(ValueError, match="top_k must be >= 1"):
+        HybridRanker(top_k=0)
+
     with pytest.raises(ValueError, match="model_name cannot be empty"):
         EmbeddingRanker(model_name="  ")
+
+    with pytest.raises(ValueError, match="model_name cannot be empty"):
+        HybridRanker(model_name="  ")
 
 
 @pytest.mark.asyncio

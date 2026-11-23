@@ -43,7 +43,7 @@ pip install -e ".[trends]"      # Google Trends
 pip install -e ".[prophet]"       # Prophet detector
 pip install -e ".[ruptures]"      # change-point detector
 pip install -e ".[river]"         # online / streaming detector
-pip install -e ".[ranking]"       # Embedding ranker
+pip install -e ".[ranking]"       # Embedding and hybrid rankers
 pip install -e ".[pdf]"           # PDF reports (xhtml2pdf)
 pip install -e ".[reports]"       # report extras (currently PDF)
 pip install -e ".[all]"           # everything
@@ -288,6 +288,25 @@ RupturesDetector(algorithm="pelt", model="rbf", penalty=10.0)
 RiverDetector(model="gaussian", threshold=0.95, min_points=10)
 ```
 
+### Choosing a ranker
+
+| Ranker              | Best for                             | Notes                                                         |
+| ------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| **BM25Ranker**      | Exact keyword overlap                | No extra dependencies                                         |
+| **EmbeddingRanker** | Paraphrases of the event keyword     | Needs `whytrend[ranking]`                                     |
+| **HybridRanker**    | Exact terms and paraphrases together | BM25 and embeddings merged with RRF; needs `whytrend[ranking]` |
+
+
+```python
+from whytrend import BM25Ranker, EmbeddingRanker, HybridRanker
+
+BM25Ranker(top_k=5)
+EmbeddingRanker(top_k=5)  # pip install 'whytrend[ranking]'
+HybridRanker(top_k=5)  # pip install 'whytrend[ranking]'
+```
+
+`whytrend analyze --ranker bm25`, `--ranker embedding`, and `--ranker hybrid` each fill the pipeline's single ranker slot.
+
 ## Writing a WhyTrend plugin
 
 Third-party packages can register components without forking WhyTrend. Direct imports (`from whytrend import ZScoreDetector`) remain the supported API.
@@ -321,7 +340,7 @@ MyNews = load_plugin("whytrend.collectors", "my_news")
 
 ## Roadmap
 
-Core MVP is in place. Next focus: **integrations and ecosystem**.
+Core MVP is in place. Next focus: **ranking quality**, then explanations you can check, then analyst decisions.
 
 ### v0.2 — More collectors
 - [x] Google News
@@ -343,8 +362,23 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [x] Plugin registry (entry points)
 
 ### v0.6 — Ranking quality
-- [ ] Hybrid ranker (BM25 + embeddings merged with RRF)
+- [x] Hybrid ranker (BM25 + embeddings merged with RRF)
 - [ ] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
+- [ ] Time proximity in the relevance score (`published_at` inside the event window, not only lexical match)
+- [ ] Confidence cap: explainer confidence cannot exceed the evidence-filter verdict
+
+### v0.7 — Explanations you can check
+- [ ] Known-event eval set (expected verdicts for releases, news spikes, and empty background)
+- [ ] Ground every cause URL in collected evidence; drop invented links before the report
+- [ ] Cluster adjacent detections into one event instead of one LLM call per point
+- [ ] Surface collector failures in report metadata instead of dropping them silently
+- [ ] HTML report chart of the series, the event window, and the detection
+
+### v0.8 — Analyst decisions
+- [ ] Movement shape: one-off spike, level shift, seasonality, or sustained growth (`seasonality_break` is declared but unused)
+- [ ] Compare several series: a move shared by all of them, or isolated to one keyword
+- [ ] Example private-context collector (changelog or event CSV), not only public web sources
+- [ ] Stable `Report` contract and leave Pre-Alpha once the known-event set passes
 
 Track progress in [GitHub Issues](https://github.com/AlexProvatorov/WhyTrend/issues).
 

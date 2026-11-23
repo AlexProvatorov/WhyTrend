@@ -93,6 +93,7 @@ rss = "whytrend.collectors:RSSFeedCollector"
 [project.entry-points."whytrend.rankers"]
 bm25 = "whytrend.rankers:BM25Ranker"
 embedding = "whytrend.rankers:EmbeddingRanker"
+hybrid = "whytrend.rankers:HybridRanker"
 
 [project.entry-points."whytrend.explainers"]
 llm = "whytrend.explainers:LLMExplainer"

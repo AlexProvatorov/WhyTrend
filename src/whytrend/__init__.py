@@ -24,7 +24,7 @@ from whytrend.explainers import (
 )
 from whytrend.pipeline import Pipeline
 from whytrend.plugins import PluginError, UnknownPluginError, list_plugins, load_plugin
-from whytrend.rankers import BM25Ranker, EmbeddingRanker
+from whytrend.rankers import BM25Ranker, EmbeddingRanker, HybridRanker
 from whytrend.report import HTMLRenderer, JSONRenderer, MarkdownRenderer, PDFRenderer
 from whytrend.sources import CSVSource, GoogleTrends, PandasSource, ParquetSource
 
@@ -43,6 +43,7 @@ __all__ = [
     "GoogleTrends",
     "HackerNewsCollector",
     "HTMLRenderer",
+    "HybridRanker",
     "JSONRenderer",
     "LLMExplainer",
     "MarkdownRenderer",
