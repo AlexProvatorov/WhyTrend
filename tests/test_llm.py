@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from whytrend.core import AnomalyType, Event, Evidence
+from whytrend.core import AnomalyType, Cause, Event, Evidence, EvidenceVerdict, Explanation
 from whytrend.explainers import (
     AnthropicExplainer,
     AzureOpenAIExplainer,
@@ -27,7 +27,14 @@ from whytrend.llm import (
     OpenAIProvider,
     OpenRouterProvider,
 )
-from whytrend.llm._parsing import explanation_from_payload, fallback_explanation, parse_llm_content
+from whytrend.llm._parsing import (
+    LLMResponseError,
+    apply_verdict,
+    explanation_from_payload,
+    fallback_explanation,
+    ground_causes,
+    parse_llm_content,
+)
 
 
 @pytest.fixture
@@ -432,6 +439,175 @@ def test_azure_and_openrouter_explainers_accept_injected_clients() -> None:
     openrouter = OpenRouterExplainer(client=SimpleNamespace())
     assert openrouter.name == "openrouter"
     assert isinstance(openrouter.provider, OpenRouterProvider)
+
+
+def test_parser_accepts_response_schema_and_string_numbers(llm_event: Event) -> None:
+    content = json.dumps(
+        {
+            "event": {"keyword": "Python"},
+            "response_schema": {
+                "summary": "A release drove the spike.",
+                "confidence": "0.82",
+                "causes": [
+                    {
+                        "source": "hacker_news",
+                        "score": "0.70",
+                        "url": "https://example.com/python-3-13",
+                        "title": "Python 3.13 released",
+                        "summary": "Release announcement.",
+                    }
+                ],
+            },
+        }
+    )
+
+    explanation = parse_llm_content(llm_event, content)
+
+    assert explanation.summary == "A release drove the spike."
+    assert explanation.confidence == 0.82
+    assert explanation.causes[0].score == 0.7
+
+
+def test_parser_keeps_the_raw_response_on_failure(llm_event: Event) -> None:
+    raw = "not json at all"
+    with pytest.raises(LLMResponseError, match="not valid JSON") as caught:
+        parse_llm_content(llm_event, raw)
+
+    assert caught.value.raw_response == raw
+
+
+def test_correlation_summary_strips_likely_cause_inside_a_phrase(llm_event: Event) -> None:
+    explanation = parse_llm_content(
+        llm_event,
+        json.dumps(
+            {
+                "summary": "The likely cause is a popular release.",
+                "confidence": 0.4,
+                "causes": [],
+            }
+        ),
+    )
+
+    rewritten = apply_verdict(explanation, EvidenceVerdict.CORRELATION_ONLY, llm_event)
+
+    assert "likely cause" not in rewritten.summary.lower()
+    assert rewritten.summary == "The correlation is a popular release."
+
+
+def test_parser_accepts_response_wrapper_and_likely_cause_key(llm_event: Event) -> None:
+    wrapped = parse_llm_content(
+        llm_event,
+        json.dumps(
+            {
+                "response": {
+                    "summary": "A release drove the spike.",
+                    "confidence": "0.44",
+                    "causes": [],
+                }
+            }
+        ),
+    )
+    aliased = parse_llm_content(
+        llm_event,
+        json.dumps(
+            {
+                "likely_cause": "A release drove the spike.",
+                "confidence": 0.44,
+                "causes": [],
+            }
+        ),
+    )
+
+    assert wrapped.summary == "A release drove the spike."
+    assert wrapped.confidence == 0.44
+    assert aliased.summary == wrapped.summary
+    assert aliased.confidence == wrapped.confidence
+
+
+def test_parser_keeps_summary_when_a_cause_does_not_match_the_schema(llm_event: Event) -> None:
+    explanation = parse_llm_content(
+        llm_event,
+        json.dumps(
+            {
+                "response": {
+                    "summary": "No outside evidence was available.",
+                    "confidence": 0.2,
+                    "causes": [
+                        {"title": "made up", "text": "not a cause"},
+                        {
+                            "source": "hacker_news",
+                            "score": "0.4",
+                            "url": "https://example.com/python-3-13",
+                            "title": "Python 3.13",
+                        },
+                    ],
+                }
+            }
+        ),
+    )
+
+    assert explanation.summary == "No outside evidence was available."
+    assert [cause.url for cause in explanation.causes] == ["https://example.com/python-3-13"]
+
+
+def test_ground_causes_drops_urls_missing_from_evidence(llm_event: Event, llm_evidences) -> None:
+    explanation = Explanation(
+        event_id=llm_event.id,
+        anomaly_type=llm_event.anomaly_type,
+        confidence=0.9,
+        summary="Two causes.",
+        causes=[
+            Cause(
+                source="hacker_news",
+                score=0.9,
+                url=llm_evidences[0].url,
+                title="kept",
+            ),
+            Cause(
+                source="blog",
+                score=0.8,
+                url="https://example.com/invented",
+                title="invented",
+            ),
+        ],
+    )
+
+    grounded = ground_causes(explanation, llm_evidences)
+
+    assert [cause.url for cause in grounded.causes] == [llm_evidences[0].url]
+    assert grounded.summary == "The cited evidence is kept."
+
+
+def test_ground_causes_removes_the_invented_cause_sentence(
+    llm_event: Event,
+    llm_evidences,
+) -> None:
+    explanation = Explanation(
+        event_id=llm_event.id,
+        anomaly_type=llm_event.anomaly_type,
+        confidence=0.9,
+        summary="The likely cause is a blog that does not exist.",
+        causes=[
+            Cause(
+                source="blog",
+                score=0.9,
+                url="https://example.com/invented",
+                title="Invented",
+            ),
+            Cause(
+                source="hacker_news",
+                score=0.4,
+                url=llm_evidences[0].url,
+                title="Python 3.13",
+            ),
+        ],
+    )
+
+    grounded = ground_causes(explanation, llm_evidences)
+
+    assert "does not exist" not in grounded.summary
+    assert grounded.summary == "The cited evidence is Python 3.13."
+    assert [cause.url for cause in grounded.causes] == [llm_evidences[0].url]
 
 
 def test_explanation_from_payload_rejects_invalid_confidence(llm_event: Event) -> None:

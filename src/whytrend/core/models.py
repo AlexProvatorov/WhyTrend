@@ -123,6 +123,10 @@ class Explanation(WhyTrendModel):
     anomaly_type: AnomalyType
     confidence: float = Field(ge=0.0, le=1.0)
     verdict: EvidenceVerdict | None = None
+    timestamp: datetime | None = None
+    value: float | None = None
+    window_start: datetime | None = None
+    window_end: datetime | None = None
     summary: str
     causes: list[Cause] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)

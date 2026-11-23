@@ -1,4 +1,7 @@
-from datetime import UTC, datetime
+import logging
+import sys
+import types
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pandas as pd
@@ -22,8 +25,19 @@ def test_zscore_detector_finds_spike(python_interest_series) -> None:
     assert result.primary is not None
     assert result.primary.anomaly_type is AnomalyType.SPIKE
     assert result.primary.value == 640.0
-    assert result.primary.expected_value == pytest.approx(322.8, rel=1e-2)
+    assert result.primary.expected_value == pytest.approx(123.0)
     assert result.primary.score > 0.0
+
+
+def test_zscore_default_threshold_sees_the_fixture_spike(python_interest_series) -> None:
+    result = ZScoreDetector().detect(python_interest_series)
+
+    assert result.metadata.get("reason") is None
+    assert {item.value for item in result.detections} == {610.0, 640.0}
+    events = EventBuilder().build(result, python_interest_series)
+    assert len(events) == 1
+    assert events[0].value == 640.0
+    assert events[0].metadata["merged_detections"] == 2
 
 
 def test_zscore_detector_returns_empty_for_short_series(python_interest_series) -> None:
@@ -62,6 +76,52 @@ def test_prophet_detector_finds_points_outside_forecast_band(python_interest_ser
     assert result.primary is not None
     assert result.primary.value in {610.0, 640.0}
     assert result.primary.anomaly_type is AnomalyType.SPIKE
+
+
+def test_prophet_fits_naive_utc_and_hides_missing_plotly(
+    python_interest_series,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class _Prophet:
+        def __init__(self, **kwargs: object) -> None:
+            captured["kwargs"] = kwargs
+
+        def fit(self, frame: pd.DataFrame) -> None:
+            captured["fit_tz"] = frame["ds"].dt.tz
+
+        def predict(self, frame: pd.DataFrame) -> pd.DataFrame:
+            captured["predict_tz"] = frame["ds"].dt.tz
+            count = len(frame)
+            return pd.DataFrame(
+                {
+                    "ds": frame["ds"],
+                    "yhat": [100.0] * count,
+                    "yhat_lower": [90.0] * count,
+                    "yhat_upper": [110.0] * count,
+                }
+            )
+
+    class _ProphetModule(types.ModuleType):
+        @property
+        def Prophet(self) -> type[_Prophet]:
+            logging.getLogger("prophet.plot").error(
+                "Importing plotly failed. Interactive plots will not work."
+            )
+            return _Prophet
+
+    with caplog.at_level(logging.ERROR):
+        with patch.dict(sys.modules, {"prophet": _ProphetModule("prophet")}):
+            result = ProphetDetector(min_points=5).detect(python_interest_series)
+        logging.getLogger("prophet").error("Stan failed to fit")
+
+    assert captured["fit_tz"] is None
+    assert captured["predict_tz"] is None
+    assert result.detections
+    assert all(item.timestamp.utcoffset() == timedelta(0) for item in result.detections)
+    assert "Importing plotly failed" not in caplog.text
+    assert "Stan failed to fit" in caplog.text
 
 
 def test_ruptures_detector_emits_changepoints(python_interest_series) -> None:
@@ -124,20 +184,27 @@ def test_ruptures_detector_validation() -> None:
 
 
 def test_river_detector_finds_injected_anomaly(python_interest_series) -> None:
-    detector = RiverDetector(min_points=2, threshold=0.5)
-    # Warm-up scores stay 0; inject a high score on the last spike point.
-    scores = [0.0, 0.0, 0.1, 0.2, 0.99]
-    with patch.object(detector, "_score_series", return_value=scores):
-        result = detector.detect(python_interest_series)
+    class _AlwaysOne:
+        def score_one(self, *args: object, **kwargs: object) -> float:
+            _ = args, kwargs
+            return 1.0
 
-    assert detector.name == "river"
+        def learn_one(self, *args: object, **kwargs: object) -> None:
+            _ = args, kwargs
+
+    class _Anomaly:
+        def GaussianScorer(self, **kwargs: object) -> _AlwaysOne:
+            _ = kwargs
+            return _AlwaysOne()
+
+    with patch("whytrend.detectors.river_detector._load_river_anomaly", return_value=_Anomaly()):
+        result = RiverDetector(min_points=2, threshold=0.95).detect(python_interest_series)
+
     assert result.detector_name == "river"
     assert result.primary is not None
-    assert result.primary.index == 4
-    assert result.primary.value == 640.0
+    assert {item.value for item in result.detections} == {610.0, 640.0}
     assert result.primary.anomaly_type is AnomalyType.SPIKE
     assert result.metadata["model"] == "gaussian"
-    assert result.metadata["detection_count"] == 1
 
 
 def test_river_detector_returns_empty_for_short_series(python_interest_series) -> None:
@@ -153,28 +220,161 @@ def test_river_detector_returns_empty_for_short_series(python_interest_series) -
 
 
 def test_river_detector_update_respects_warmup_and_threshold() -> None:
-    detector = RiverDetector(min_points=2, threshold=0.8)
+    detector = RiverDetector(min_points=2, threshold=0.99)
 
-    class FakeModel:
-        def __init__(self) -> None:
-            self.scores = [0.1, 0.95]
-
-        def score_one(self, *args, **kwargs):
+    class _AlwaysOne:
+        def score_one(self, *args: object, **kwargs: object) -> float:
             _ = args, kwargs
-            return self.scores.pop(0)
+            return 1.0
+
+        def learn_one(self, *args: object, **kwargs: object) -> None:
+            _ = args, kwargs
+
+    with patch.object(detector, "_create_model", return_value=_AlwaysOne()):
+        assert detector.update(10.0) is None
+        assert detector.update(11.0) is None
+        assert detector.update(12.0) is None
+        detection = detector.update(100.0)
+
+    assert detection is not None
+    assert detection.value == 100.0
+    assert detection.score == 1.0
+
+
+def test_river_gaussian_ignores_ordinary_noise() -> None:
+    class _AlwaysOne:
+        def score_one(self, *args: object, **kwargs: object) -> float:
+            _ = args, kwargs
+            return 1.0
+
+        def learn_one(self, *args: object, **kwargs: object) -> None:
+            _ = args, kwargs
+
+    class _Anomaly:
+        def GaussianScorer(self, **kwargs: object) -> _AlwaysOne:
+            _ = kwargs
+            return _AlwaysOne()
+
+    values = [9.6 if index % 2 == 0 else 10.4 for index in range(40)]
+    values.extend([9.07, 80.0])
+    frame = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=len(values), freq="D", tz="UTC"),
+            "value": values,
+        }
+    )
+    series = TimeSeries.from_dataframe(
+        frame,
+        time_col="timestamp",
+        value_col="value",
+        name="noisy",
+    )
+
+    with patch("whytrend.detectors.river_detector._load_river_anomaly", return_value=_Anomaly()):
+        result = RiverDetector(min_points=10, threshold=0.95).detect(series)
+
+    assert [item.value for item in result.detections] == [80.0]
+
+
+def test_river_gaussian_plateau_does_not_outrank_the_spike() -> None:
+    class _AlwaysOne:
+        def score_one(self, *args: object, **kwargs: object) -> float:
+            _ = args, kwargs
+            return 1.0
+
+        def learn_one(self, *args: object, **kwargs: object) -> None:
+            _ = args, kwargs
+
+    class _Anomaly:
+        def GaussianScorer(self, **kwargs: object) -> _AlwaysOne:
+            _ = kwargs
+            return _AlwaysOne()
+
+    frame = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=41, freq="D", tz="UTC"),
+            "value": [10.0] * 40 + [500.0],
+        }
+    )
+    series = TimeSeries.from_dataframe(
+        frame,
+        time_col="timestamp",
+        value_col="value",
+        name="plateau",
+    )
+
+    with patch("whytrend.detectors.river_detector._load_river_anomaly", return_value=_Anomaly()):
+        result = RiverDetector(min_points=10, threshold=0.95).detect(series)
+
+    assert [item.value for item in result.detections] == [500.0]
+    assert result.detections[0].score == 1.0
+
+
+def test_river_constant_series_is_zero_variance() -> None:
+    frame = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=30, freq="D", tz="UTC"),
+            "value": [10.0] * 30,
+        }
+    )
+    series = TimeSeries.from_dataframe(frame, time_col="timestamp", value_col="value", name="flat")
+
+    result = RiverDetector(min_points=5).detect(series)
+
+    assert result.detections == []
+    assert result.metadata["reason"] == "zero_variance"
+
+
+def test_river_passes_grace_period_and_series_limits() -> None:
+    class _Silent:
+        def score_one(self, *args, **kwargs) -> float:
+            _ = args, kwargs
+            return 0.0
 
         def learn_one(self, *args, **kwargs) -> None:
             _ = args, kwargs
 
-    with patch.object(detector, "_create_model", return_value=FakeModel()):
-        assert detector.update(10.0) is None  # warm-up
-        assert detector.update(11.0) is None  # warm-up completes
-        assert detector.update(12.0) is None  # score 0.1
-        detection = detector.update(100.0)  # score 0.95
+    class _Anomaly:
+        def __init__(self) -> None:
+            self.gaussian: dict = {}
+            self.trees: dict = {}
 
-    assert detection is not None
-    assert detection.value == 100.0
-    assert detection.score == pytest.approx(0.95)
+        def GaussianScorer(self, **kwargs) -> _Silent:
+            self.gaussian = kwargs
+            return _Silent()
+
+        def HalfSpaceTrees(self, **kwargs) -> _Silent:
+            self.trees = kwargs
+            return _Silent()
+
+    anomaly = _Anomaly()
+    frame = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=12, freq="D", tz="UTC"),
+            "value": [
+                120.0,
+                121.0,
+                119.0,
+                122.0,
+                118.0,
+                123.0,
+                117.0,
+                124.0,
+                116.0,
+                125.0,
+                130.0,
+                900.0,
+            ],
+        }
+    )
+    series = TimeSeries.from_dataframe(frame, time_col="timestamp", value_col="value", name="wide")
+
+    with patch("whytrend.detectors.river_detector._load_river_anomaly", return_value=anomaly):
+        RiverDetector(min_points=4, threshold=0.99).detect(series)
+        RiverDetector(model="half_space_trees", min_points=4, threshold=0.99).detect(series)
+
+    assert anomaly.gaussian["grace_period"] == 4
+    assert anomaly.trees["limits"] == {"value": (116.0, 900.0)}
 
 
 def test_river_detector_validation() -> None:

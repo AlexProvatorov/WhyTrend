@@ -126,6 +126,27 @@ def test_analyze_writes_markdown_report(tmp_path: Path) -> None:
     assert "Python" in text
 
 
+def test_analyze_creates_missing_output_directory(tmp_path: Path) -> None:
+    out = tmp_path / "reports" / "2026" / "report.md"
+    code, _stdout, stderr = _invoke(
+        [
+            "analyze",
+            "--csv",
+            str(FIXTURE_CSV),
+            "--set",
+            "detector.threshold=1.0",
+            "--format",
+            "markdown",
+            "--out",
+            str(out),
+        ]
+    )
+
+    assert code == 0, stderr
+    assert out.is_file()
+    assert out.read_text(encoding="utf-8").startswith("# WhyTrend Report")
+
+
 def test_analyze_writes_json_report(tmp_path: Path) -> None:
     out = tmp_path / "report.json"
     code, _stdout, stderr = _invoke(

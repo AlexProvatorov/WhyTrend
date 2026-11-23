@@ -58,7 +58,6 @@ whytrend analyze \
   --csv tests/fixtures/python_interest.csv \
   --keyword Python \
   --detector zscore \
-  --set detector.threshold=1.0 \
   --explainer mock \
   --out report.md
 ```
@@ -112,7 +111,7 @@ from whytrend import (
 pipeline = (
     Pipeline(window_days=3)
     .add_source(CSVSource("tests/fixtures/python_interest.csv", keyword="Python"))
-    .add_detector(ZScoreDetector(threshold=1.0))
+    .add_detector(ZScoreDetector())
     .add_ranker(BM25Ranker(top_k=5))
     .add_explainer(LLMExplainer(MockLLMProvider()))
 )
@@ -232,7 +231,7 @@ Or pass them explicitly:
 RedditCollector(client_id="...", client_secret="...", subreddits=["Python", "MachineLearning"])
 ```
 
-GitHub Releases works without a token for light use. For higher rate limits:
+GitHub Releases searches starred repositories whose name contains the keyword, then keeps releases inside the event window. Pass `repos` to pin the list. It works without a token for light use. For higher rate limits:
 
 ```bash
 export GITHUB_TOKEN="ghp_..."
@@ -242,7 +241,7 @@ export GITHUB_TOKEN="ghp_..."
 GitHubReleasesCollector(token="ghp_...", repos=["python/cpython"])
 ```
 
-Stack Overflow works without a key for light use. For a higher daily quota
+Stack Overflow searches questions tagged with the keyword that also use it in the title. It works without a key for light use. For a higher daily quota
 (register at [https://stackapps.com/](https://stackapps.com/)):
 
 ```bash
@@ -305,7 +304,7 @@ EmbeddingRanker(top_k=5)  # pip install 'whytrend[ranking]'
 HybridRanker(top_k=5)  # pip install 'whytrend[ranking]'
 ```
 
-`whytrend analyze --ranker bm25`, `--ranker embedding`, and `--ranker hybrid` each fill the pipeline's single ranker slot.
+`whytrend analyze --ranker bm25`, `--ranker embedding`, and `--ranker hybrid` each fill the pipeline's single ranker slot. BM25 scores are a fraction of a perfect match for the query, not a stretch that makes the best item `1.0`. Embedding relevance is cosine clamped to `[0, 1]`, so an unrelated page scores near `0` rather than `0.5`. Hybrid orders with reciprocal rank fusion and keeps the mean of the two scores, so a weak mention stays below `cause_threshold`.
 
 Each ranker takes `time_weight` (default `0.0`). At `0`, scores stay on the text match. Above that, an item published at `event.timestamp` keeps its score, and one at `window_start` or `window_end` keeps less:
 
@@ -338,7 +337,7 @@ Ranking only reorders evidence. `EvidenceFilter` runs after the ranker and befor
 | `correlation_only` | Items remain, and every one of them is below `cause_threshold` | `0.6` (`correlation_only_cap`) |
 | `evidence_insufficient` | Nothing remains | `0.3` (`evidence_insufficient_cap`) |
 
-`likely_cause` is the only verdict whose summary may say "Likely cause". `evidence_insufficient` has no cause. After the explainer returns, the filter clamps `Explanation.confidence` and every `Cause.score` to that verdict's ceiling. A likely cause can still be `1.0`. A pipeline with no filter leaves the explainer's confidence unchanged. When a number is lowered, the explanation metadata includes `confidence_capped: true`. The filter is optional and works with `bm25`, `embedding`, and `hybrid`.
+`likely_cause` is the only verdict whose summary may say "likely cause", including inside a longer phrase such as "The likely cause is". `evidence_insufficient` has no cause. After the explainer returns, the filter clamps `Explanation.confidence` and every `Cause.score` to that verdict's ceiling. A likely cause can still be `1.0`. A pipeline with no filter leaves the explainer's confidence unchanged. When a number is lowered, the explanation metadata includes `confidence_capped: true`. The filter is optional and works with `bm25`, `embedding`, and `hybrid`.
 
 ```python
 from whytrend import EvidenceFilter

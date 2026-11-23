@@ -24,7 +24,10 @@ async def get_http_client(
         yield client
         return
 
-    async with httpx.AsyncClient(timeout=timeout) as managed_client:
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        headers={"User-Agent": DEFAULT_USER_AGENT},
+    ) as managed_client:
         yield managed_client
 
 
@@ -34,7 +37,11 @@ async def get_json(
     *,
     params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    response = await client.get(url, params=params)
+    response = await client.get(
+        url,
+        params=params,
+        headers={"User-Agent": DEFAULT_USER_AGENT},
+    )
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):

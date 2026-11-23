@@ -10,7 +10,6 @@ from whytrend.rankers._utils import (
     apply_time_proximity,
     build_query,
     evidence_text,
-    normalize_scores,
     tokenize,
     validate_time_weight,
 )
@@ -40,7 +39,13 @@ class BM25Ranker(BaseRanker):
         if not any(documents):
             return apply_time_proximity(event, list(evidences), self._time_weight)
 
-        scores = normalize_scores(BM25Okapi(documents).get_scores(query))
+        model = BM25Okapi(documents)
+        raw_scores = model.get_scores(query)
+        ceiling = model.query_ceiling(query)
+        if ceiling <= 0:
+            scores = [0.0] * len(raw_scores)
+        else:
+            scores = [score / ceiling for score in raw_scores]
         ranked = sorted(
             apply_time_proximity(
                 event,

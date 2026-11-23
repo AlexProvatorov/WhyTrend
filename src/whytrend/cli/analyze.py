@@ -195,6 +195,8 @@ def _setting_arg(value: str) -> object:
 
 
 def _write_report(report: Report, format_name: str, out: Path | None) -> None:
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
     if format_name == "pdf":
         if out is None:
             msg = "--format pdf requires --out"

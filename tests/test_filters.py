@@ -333,11 +333,12 @@ def test_capped_confidence_is_what_the_report_renders() -> None:
 class _OverconfidentExplainer(StubExplainer):
     async def explain(self, event, evidences):
         explanation = await super().explain(event, evidences)
+        source = evidences[0] if evidences else None
         cause = Cause(
-            source="hacker_news",
+            source=source.source_name if source is not None else "hacker_news",
             score=0.9,
-            url="https://example.com/story",
-            title="A headline",
+            url=source.url if source is not None else "https://example.com/story",
+            title=source.title if source is not None else "A headline",
             summary="details",
         )
         return explanation.model_copy(update={"confidence": 0.95, "causes": [cause]})

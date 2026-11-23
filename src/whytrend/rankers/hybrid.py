@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from whytrend.core.models import Event, Evidence
 from whytrend.core.protocols import BaseRanker
-from whytrend.rankers._utils import apply_relevance_scores, validate_time_weight
+from whytrend.detectors._utils import clamp_score
+from whytrend.rankers._utils import validate_time_weight
 from whytrend.rankers.bm25 import BM25Ranker
 from whytrend.rankers.embedding import EmbeddingRanker, _EmbeddingModel
 
@@ -16,9 +17,9 @@ class HybridRanker(BaseRanker):
     """Fuse BM25 and embedding rankings with reciprocal rank fusion.
 
     Both rankers score the full evidence list and apply ``time_weight``
-    before fusion, so RRF sees that order. RRF itself stays a rank-position
-    formula. It scales into ``[0, 1]``, then ``top_k`` truncates the fused
-    list. Rank 1 on every list scores ``1.0``.
+    before fusion, so RRF sees that order. RRF only decides order and
+    ``top_k``. ``relevance_score`` is the mean of the two ranker scores, so a
+    weak list is not stretched up to ``1.0``.
     """
 
     def __init__(
@@ -64,21 +65,34 @@ class HybridRanker(BaseRanker):
             )
             raise ImportError(msg) from exc
 
-        scores = _rrf_scores(
+        rrf_scores = _rrf_scores(
             [
                 _positions(evidences, bm25_ranked),
                 _positions(evidences, embedding_ranked),
             ],
             k=_RRF_K,
         )
-        ranked = sorted(
-            apply_relevance_scores(evidences, scores),
-            key=lambda evidence: evidence.relevance_score,
-            reverse=True,
-        )
+        fused = []
+        for index, evidence in enumerate(evidences):
+            absolute = (
+                _score_of(evidence, bm25_ranked) + _score_of(evidence, embedding_ranked)
+            ) / 2
+            fused.append((rrf_scores[index], clamp_score(absolute), evidence))
+        fused.sort(key=lambda item: item[0], reverse=True)
+        ranked = [
+            evidence.model_copy(update={"relevance_score": score})
+            for _rrf, score, evidence in fused
+        ]
         if self._top_k is None:
             return ranked
         return ranked[: self._top_k]
+
+
+def _score_of(evidence: Evidence, ranked: list[Evidence]) -> float:
+    for item in ranked:
+        if _same_evidence(evidence, item):
+            return item.relevance_score
+    return 0.0
 
 
 def _positions(original: list[Evidence], ranked: list[Evidence]) -> list[int]:

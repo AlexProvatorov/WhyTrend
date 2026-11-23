@@ -59,10 +59,9 @@ class EmbeddingRanker(BaseRanker):
 
         query_vector = model.encode([query], normalize_embeddings=True)[0]
         document_vectors = model.encode(documents, normalize_embeddings=True)
-        scores = [
-            clamp_score((float(np.dot(query_vector, vector)) + 1.0) / 2.0)
-            for vector in document_vectors
-        ]
+        # Cosine is already in [-1, 1]. Shifting it with (cos + 1) / 2 scores an
+        # unrelated page near 0.5 and lets a passing mention clear cause_threshold.
+        scores = [clamp_score(float(np.dot(query_vector, vector))) for vector in document_vectors]
 
         ranked = sorted(
             apply_time_proximity(

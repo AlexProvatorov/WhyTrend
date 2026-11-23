@@ -4,8 +4,9 @@ import numpy as np
 import pytest
 
 from tests.stubs import StubCollector, StubExplainer
-from whytrend.core import AnomalyType, Evidence
+from whytrend.core import AnomalyType, Evidence, EvidenceVerdict
 from whytrend.detectors import ZScoreDetector
+from whytrend.filters import EvidenceFilter
 from whytrend.pipeline import Pipeline
 from whytrend.rankers import BM25Ranker, EmbeddingRanker, HybridRanker
 from whytrend.rankers._utils import apply_time_proximity, build_query
@@ -77,7 +78,7 @@ def test_embedding_ranker_orders_relevant_evidence_first(ranking_event, sample_e
 
     assert ranked[0].title == "Python 3.13 released"
     assert ranked[0].relevance_score == 1.0
-    assert ranked[1].relevance_score == 0.5
+    assert ranked[1].relevance_score == 0.0
 
 
 def _specialist_evidences() -> list[Evidence]:
@@ -135,10 +136,8 @@ def test_hybrid_ranker_lets_a_single_method_hit_beat_a_mediocre_pair(ranking_eve
     mediocre_at = titles.index("mediocre Python mention")
     assert titles.index("Python spike exact match") < mediocre_at
     assert titles.index("language release paraphrase") < mediocre_at
-    scores = [item.relevance_score for item in ranked]
-    assert scores == sorted(scores, reverse=True)
-    assert all(0.0 <= score <= 1.0 for score in scores)
-    assert ranked[0].relevance_score > ranked[-1].relevance_score
+    assert all(0.0 <= item.relevance_score <= 1.0 for item in ranked)
+    assert max(item.relevance_score for item in ranked) < 1.0
 
 
 def test_hybrid_ranker_truncates_to_top_k(ranking_event) -> None:
@@ -152,7 +151,7 @@ def test_hybrid_ranker_truncates_to_top_k(ranking_event) -> None:
         "Python spike exact match",
         "language release paraphrase",
     }
-    assert ranked[0].relevance_score >= ranked[1].relevance_score
+    assert all(0.0 <= item.relevance_score <= 1.0 for item in ranked)
 
 
 def test_hybrid_ranker_returns_empty_for_no_evidence(ranking_event, monkeypatch) -> None:
@@ -288,9 +287,10 @@ def test_nearer_publication_outranks_the_window_edge(ranking_event) -> None:
         ranking_event,
         evidences,
     )
-    assert fused[0].relevance_score == 1.0
-    # Rank 2 on both lists. Time already changed that order; RRF does not apply it again.
-    assert fused[1].relevance_score == pytest.approx(61 / 62)
+    # Time already zeroed the edge inside each ranker. Fusion keeps that score.
+    assert fused[1].url == "https://example.com/edge"
+    assert fused[1].relevance_score == 0.0
+    assert fused[0].relevance_score < 1.0
 
 
 def test_missing_published_at_is_not_penalised(ranking_event) -> None:
@@ -311,6 +311,86 @@ def test_missing_published_at_is_not_penalised(ranking_event) -> None:
     undated_after = next(item for item in after if item.published_at is None)
     assert undated_after.relevance_score == before[undated_after.url]
     assert undated_after.relevance_score > after[-1].relevance_score
+
+
+def test_hybrid_mean_keeps_a_passing_mention_below_the_cause_threshold(ranking_event) -> None:
+    evidences = [
+        Evidence(
+            title="Random note that mentions Python once",
+            url="https://example.com/weak",
+            snippet="A forum post says Python in passing.",
+            source_name="example",
+            published_at=datetime(2026, 1, 4, tzinfo=UTC),
+        ),
+        Evidence(
+            title="Another Python mention",
+            url="https://example.com/weaker",
+            snippet="Python appears in a list of languages.",
+            source_name="example",
+            published_at=datetime(2026, 1, 4, tzinfo=UTC),
+        ),
+        Evidence(
+            title="Unrelated cooking blog",
+            url="https://example.com/none",
+            snippet="Recipes for soup and bread.",
+            source_name="example",
+            published_at=datetime(2026, 1, 4, tzinfo=UTC),
+        ),
+    ]
+    side = (1 - 0.39**2) ** 0.5
+
+    class _PassingMentionModel:
+        def encode(self, sentences, normalize_embeddings=True):
+            vectors = []
+            for sentence in sentences:
+                lowered = sentence.lower()
+                if "soup" in lowered or "cooking" in lowered:
+                    vector = (0.0, 1.0)
+                elif "passing" in lowered or "list of languages" in lowered:
+                    vector = (0.39, side)
+                else:
+                    vector = (1.0, 0.0)
+                vectors.append(np.array(vector, dtype=float))
+            return np.vstack(vectors)
+
+    ranked = HybridRanker(model=_PassingMentionModel(), top_k=None).rank(ranking_event, evidences)
+    cooking = next(item for item in ranked if "cooking" in item.title.lower())
+
+    assert all(item.relevance_score < 0.6 for item in ranked)
+    assert cooking.relevance_score < 0.2
+    _kept, verdict = EvidenceFilter().filter(ranked)
+    assert verdict is not EvidenceVerdict.LIKELY_CAUSE
+
+
+def test_weak_mention_is_not_stretched_to_a_perfect_score(ranking_event) -> None:
+    evidences = [
+        Evidence(
+            title="Python numbers every programmer should know",
+            url="https://example.com/python",
+            snippet="A short Python note.",
+            source_name="hacker_news",
+        ),
+        Evidence(
+            title="Weeknight cooking",
+            url="https://example.com/cooking",
+            snippet="A recipe blog.",
+            source_name="blog",
+        ),
+        Evidence(
+            title="Python spike 2026-01-04 exact",
+            url="https://example.com/exact",
+            snippet="Python spike 2026-01-04 Python spike",
+            source_name="hacker_news",
+        ),
+    ]
+
+    ranked = BM25Ranker(top_k=None).rank(ranking_event, evidences)
+    by_url = {item.url: item.relevance_score for item in ranked}
+
+    assert by_url["https://example.com/cooking"] == 0.0
+    assert by_url["https://example.com/python"] < 0.6
+    assert by_url["https://example.com/python"] < by_url["https://example.com/exact"]
+    assert max(by_url.values()) <= 1.0
 
 
 def test_items_outside_the_window_sink_and_are_kept(ranking_event) -> None:

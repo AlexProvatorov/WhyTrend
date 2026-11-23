@@ -43,7 +43,7 @@ def _mock_transport(handler) -> httpx.AsyncClient:
 async def test_google_news_collector_parses_rss(sample_event: Event) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.host == "news.google.com"
-        assert request.url.params["q"] == "Python"
+        assert request.url.params["q"] == "Python after:2026-01-01 before:2026-01-07"
         return httpx.Response(200, text=GOOGLE_NEWS_SAMPLE_RSS)
 
     collector = GoogleNewsCollector(client=_mock_transport(handler))
@@ -56,6 +56,10 @@ async def test_google_news_collector_parses_rss(sample_event: Event) -> None:
     assert evidences[0].snippet == "Major release drives search interest."
     assert evidences[0].published_at == datetime(2026, 1, 3, 12, 0, tzinfo=UTC)
     assert evidences[0].metadata["publisher"] == "Example News"
+
+
+def test_google_news_snippet_decodes_nbsp() -> None:
+    assert GoogleNewsCollector._clean_snippet("Make&nbsp;Python scripts") == "Make Python scripts"
 
 
 @pytest.mark.asyncio
@@ -162,6 +166,7 @@ async def test_wikipedia_collector_parses_search_results(sample_event: Event) ->
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.host == "en.wikipedia.org"
         assert request.url.params["srsearch"] == "Python"
+        assert request.headers["user-agent"].startswith("whytrend/")
         return httpx.Response(
             200,
             json={
@@ -169,7 +174,10 @@ async def test_wikipedia_collector_parses_search_results(sample_event: Event) ->
                     "search": [
                         {
                             "title": "Python (programming language)",
-                            "snippet": "Python is a high-level programming language.",
+                            "snippet": (
+                                '<span class="searchmatch">Python</span> is a '
+                                "high-level programming language."
+                            ),
                             "pageid": 23862,
                         }
                     ]
@@ -184,6 +192,8 @@ async def test_wikipedia_collector_parses_search_results(sample_event: Event) ->
     assert evidences[0].title == "Python (programming language)"
     assert evidences[0].source_name == "wikipedia"
     assert evidences[0].url == "https://en.wikipedia.org/wiki/Python_%28programming_language%29"
+    assert evidences[0].snippet == "Python is a high-level programming language."
+    assert evidences[0].published_at is None
 
 
 @pytest.mark.asyncio
@@ -421,6 +431,7 @@ async def test_github_releases_collector_parses_releases(sample_event: Event) ->
         assert request.url.host == "api.github.com"
         if request.url.path == "/search/repositories":
             assert "Python" in request.url.params["q"]
+            assert request.url.params["sort"] == "stars"
             return httpx.Response(
                 200,
                 json={
@@ -637,7 +648,9 @@ async def test_stack_overflow_collector_parses_questions(sample_event: Event) ->
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.host == "api.stackexchange.com"
         assert request.url.path.endswith("/search/advanced")
-        assert request.url.params["q"] == "Python"
+        assert request.url.params["tagged"] == "python"
+        assert request.url.params["title"] == "Python"
+        assert "q" not in request.url.params
         assert request.url.params["site"] == "stackoverflow"
         assert "fromdate" in request.url.params
         assert "todate" in request.url.params
@@ -654,7 +667,16 @@ async def test_stack_overflow_collector_parses_questions(sample_event: Event) ->
                         "tags": ["python", "memory"],
                         "score": 17,
                         "creation_date": 1767480000,
-                    }
+                    },
+                    {
+                        "question_id": 43,
+                        "title": "Count intersections of an Android swipe code",
+                        "link": "https://stackoverflow.com/questions/43",
+                        "body": "<p>How do I do this in Python?</p>",
+                        "tags": ["android"],
+                        "score": 1,
+                        "creation_date": 1767480000,
+                    },
                 ]
             },
         )

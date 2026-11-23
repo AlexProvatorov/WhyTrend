@@ -13,6 +13,10 @@ def _sample_report() -> Report:
         event_id="evt-1",
         anomaly_type=AnomalyType.SPIKE,
         confidence=0.94,
+        timestamp=datetime(2026, 1, 5, tzinfo=UTC),
+        value=640,
+        window_start=datetime(2026, 1, 1, tzinfo=UTC),
+        window_end=datetime(2026, 1, 5, tzinfo=UTC),
         summary="Interest in 'Python' spiked due to the release of Python 3.13.",
         causes=[
             Cause(
@@ -53,6 +57,9 @@ def test_markdown_renderer_includes_summary_and_causes() -> None:
     assert "Python 3.13 released" in rendered
     assert "https://example.com/python-3-13" in rendered
     assert "**Keyword:** Python" in rendered
+    assert "**Timestamp:** 2026-01-05" in rendered
+    assert "**Value:** 640" in rendered
+    assert "**Window:** 2026-01-01" in rendered
 
 
 def test_report_convenience_methods_match_renderers() -> None:
@@ -88,6 +95,8 @@ def test_html_renderer_includes_summary_causes_and_urls() -> None:
     assert "<!DOCTYPE html>" in rendered
     assert "Executive Summary" in rendered
     assert "Python 3.13 released" in rendered
+    assert "Timestamp" in rendered
+    assert "640" in rendered
     assert "https://example.com/python-3-13" in rendered
     assert 'href="https://example.com/python-3-13"' in rendered
     assert "Python" in rendered
