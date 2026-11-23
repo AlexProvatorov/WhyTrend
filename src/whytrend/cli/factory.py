@@ -12,14 +12,14 @@ from pathlib import Path
 from types import UnionType
 from typing import Any, Literal, Union, cast, get_args, get_origin, get_type_hints
 
-from whytrend.core.protocols import Collector, Detector, Explainer, Ranker, Source
+from whytrend.core.protocols import Collector, Detector, Explainer, Filter, Ranker, Source
 from whytrend.pipeline import Pipeline
 from whytrend.plugins import PluginError, list_plugins, load_plugin
 
 COLLECTOR_ALIASES: dict[str, str] = {"hn": "hacker_news"}
 
 _COMPONENT_SETTING = re.compile(
-    r"^(?P<target>detector|explainer|ranker|source|provider)"
+    r"^(?P<target>detector|explainer|filter|ranker|source|provider)"
     r"\.(?P<param>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<value>.*)$"
 )
 _COLLECTOR_SETTING = re.compile(
@@ -29,8 +29,8 @@ _COLLECTOR_SETTING = re.compile(
 _SCALAR_TYPES = frozenset({str, int, float, bool})
 _SETTING_USAGE = (
     "expected detector.<param>=<value>, explainer.<param>=<value>, "
-    "ranker.<param>=<value>, source.<param>=<value>, provider.<param>=<value>, "
-    "or collector.<name>.<param>=<value>"
+    "filter.<param>=<value>, ranker.<param>=<value>, source.<param>=<value>, "
+    "provider.<param>=<value>, or collector.<name>.<param>=<value>"
 )
 _Kind = Literal["bool", "int", "float", "str", "str_list", "dict"]
 
@@ -129,12 +129,13 @@ def build_pipeline(args: Any) -> Pipeline:
     settings = list(args.settings or [])
     collectors = list(args.collectors or [])
     ranker_name = cast(str | None, args.ranker)
+    filter_name = cast(str | None, args.filter)
     provider_name = cast(str | None, args.provider)
     window_days = cast(int, args.window_days)
     if window_days < 1:
         msg = "--window-days must be >= 1"
         raise UsageError(msg)
-    _validate_settings(settings, collectors, ranker_name, provider_name)
+    _validate_settings(settings, collectors, ranker_name, filter_name, provider_name)
 
     pipeline = (
         Pipeline(window_days=window_days)
@@ -161,6 +162,13 @@ def build_pipeline(args: Any) -> Pipeline:
                 _instantiate("rankers", ranker_name, _params(settings, "ranker")),
             )
         )
+    if filter_name is not None:
+        pipeline.add_filter(
+            cast(
+                Filter,
+                _instantiate("filters", filter_name, _params(settings, "filter")),
+            )
+        )
     return pipeline
 
 
@@ -168,6 +176,7 @@ def _validate_settings(
     settings: list[Setting],
     collectors: list[str],
     ranker_name: str | None,
+    filter_name: str | None,
     provider_name: str | None,
 ) -> None:
     selected = set(collectors)
@@ -177,6 +186,9 @@ def _validate_settings(
             if collector not in selected:
                 msg = f"--set refers to collector {collector!r}, which is not in --collectors"
                 raise UsageError(msg)
+        elif setting.target == "filter" and filter_name is None:
+            msg = f"--set filter.{setting.param}={setting.value} requires --filter"
+            raise UsageError(msg)
         elif setting.target == "ranker" and ranker_name is None:
             msg = f"--set ranker.{setting.param}={setting.value} requires --ranker"
             raise UsageError(msg)

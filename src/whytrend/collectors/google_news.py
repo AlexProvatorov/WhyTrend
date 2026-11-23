@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from html import unescape
 from typing import Any
 from urllib.parse import quote_plus
 from xml.etree import ElementTree
@@ -56,10 +57,16 @@ class GoogleNewsCollector(BaseCollector):
     def name(self) -> str:
         return "google_news"
 
-    def rss_url(self, keyword: str) -> str:
-        """Build the Google News RSS search URL for ``keyword``."""
+    def rss_url(self, keyword: str, *, window_start: datetime, window_end: datetime) -> str:
+        """Build the Google News RSS search URL for ``keyword`` inside the window.
+
+        The feed still only carries recent articles. The dates tell Google
+        which days to search; items outside the window are dropped after parsing.
+        """
+        start = self._as_utc(window_start).date().isoformat()
+        end = self._as_utc(window_end).date().isoformat()
         params = {
-            "q": keyword,
+            "q": f"{keyword} after:{start} before:{end}",
             "hl": self._hl,
             "gl": self._region,
             "ceid": f"{self._region}:{self._language}",
@@ -74,7 +81,11 @@ class GoogleNewsCollector(BaseCollector):
         return f"{self._language}-{self._region}"
 
     async def collect(self, event: Event) -> list[Evidence]:
-        url = self.rss_url(event.keyword)
+        url = self.rss_url(
+            event.keyword,
+            window_start=event.window_start,
+            window_end=event.window_end,
+        )
 
         try:
             async with get_http_client(timeout=self._timeout, client=self._client) as client:
@@ -192,4 +203,5 @@ class GoogleNewsCollector(BaseCollector):
     def _clean_snippet(value: str) -> str:
         if not value:
             return ""
-        return _HTML_TAG_PATTERN.sub("", value).strip()
+        text = unescape(value).replace("\xa0", " ")
+        return _HTML_TAG_PATTERN.sub("", text).strip()

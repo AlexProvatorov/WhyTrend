@@ -122,6 +122,12 @@ class AnalyzeCommand:
             help=f"Optional ranker plugin. Available: {_names('rankers')}",
         )
         parser.add_argument(
+            "--filter",
+            type=_plugin_arg("filters"),
+            metavar="NAME",
+            help=f"Optional evidence filter. Available: {_names('filters')}",
+        )
+        parser.add_argument(
             "--format",
             choices=sorted(_FORMATS),
             default="markdown",
@@ -189,6 +195,8 @@ def _setting_arg(value: str) -> object:
 
 
 def _write_report(report: Report, format_name: str, out: Path | None) -> None:
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
     if format_name == "pdf":
         if out is None:
             msg = "--format pdf requires --out"

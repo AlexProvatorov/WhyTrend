@@ -126,6 +126,27 @@ def test_analyze_writes_markdown_report(tmp_path: Path) -> None:
     assert "Python" in text
 
 
+def test_analyze_creates_missing_output_directory(tmp_path: Path) -> None:
+    out = tmp_path / "reports" / "2026" / "report.md"
+    code, _stdout, stderr = _invoke(
+        [
+            "analyze",
+            "--csv",
+            str(FIXTURE_CSV),
+            "--set",
+            "detector.threshold=1.0",
+            "--format",
+            "markdown",
+            "--out",
+            str(out),
+        ]
+    )
+
+    assert code == 0, stderr
+    assert out.is_file()
+    assert out.read_text(encoding="utf-8").startswith("# WhyTrend Report")
+
+
 def test_analyze_writes_json_report(tmp_path: Path) -> None:
     out = tmp_path / "report.json"
     code, _stdout, stderr = _invoke(
@@ -233,6 +254,91 @@ def test_llm_mock_provider_writes_report(tmp_path: Path) -> None:
 
     assert code == 0, stderr
     assert "Python" in out.read_text(encoding="utf-8")
+
+
+def test_evidence_filter_is_constructed_from_the_cli() -> None:
+    args = build_parser().parse_args(
+        [
+            "analyze",
+            "--csv",
+            str(FIXTURE_CSV),
+            "--filter",
+            "evidence",
+            "--set",
+            "filter.keep_threshold=0.3",
+            "--set",
+            "filter.cause_threshold=0.7",
+        ]
+    )
+    pipeline = build_pipeline(args)
+
+    assert pipeline._filter is not None
+    assert pipeline._filter.name == "evidence"
+    assert pipeline._filter._keep_threshold == 0.3
+    assert pipeline._filter._cause_threshold == 0.7
+    assert pipeline._filter._correlation_only_cap == 0.6
+
+
+def test_confidence_caps_are_set_from_the_cli() -> None:
+    args = build_parser().parse_args(
+        [
+            "analyze",
+            "--csv",
+            str(FIXTURE_CSV),
+            "--filter",
+            "evidence",
+            "--set",
+            "filter.likely_cause_cap=0.9",
+            "--set",
+            "filter.correlation_only_cap=0.5",
+            "--set",
+            "filter.evidence_insufficient_cap=0.2",
+        ]
+    )
+    pipeline = build_pipeline(args)
+
+    assert pipeline._filter is not None
+    assert pipeline._filter._likely_cause_cap == 0.9
+    assert pipeline._filter._correlation_only_cap == 0.5
+    assert pipeline._filter._evidence_insufficient_cap == 0.2
+
+
+def test_hybrid_ranker_is_constructed_from_the_cli() -> None:
+    args = build_parser().parse_args(
+        [
+            "analyze",
+            "--csv",
+            str(FIXTURE_CSV),
+            "--ranker",
+            "hybrid",
+            "--set",
+            "ranker.top_k=3",
+        ]
+    )
+    pipeline = build_pipeline(args)
+
+    assert pipeline._ranker is not None
+    assert pipeline._ranker.name == "hybrid"
+    assert pipeline._ranker._top_k == 3
+
+
+def test_ranker_time_weight_is_set_from_the_cli() -> None:
+    args = build_parser().parse_args(
+        [
+            "analyze",
+            "--csv",
+            str(FIXTURE_CSV),
+            "--ranker",
+            "bm25",
+            "--set",
+            "ranker.time_weight=0.5",
+        ]
+    )
+    pipeline = build_pipeline(args)
+
+    assert pipeline._ranker is not None
+    assert pipeline._ranker.name == "bm25"
+    assert pipeline._ranker._time_weight == 0.5
 
 
 def test_azure_explainer_requires_deployment() -> None:

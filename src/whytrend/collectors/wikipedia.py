@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from html import unescape
 from typing import Any
 from urllib.parse import quote
 
@@ -11,6 +13,8 @@ from whytrend.collectors._http import get_http_client, get_json
 from whytrend.collectors._utils import evidence_from_fields
 from whytrend.core.models import Event, Evidence
 from whytrend.core.protocols import BaseCollector
+
+_HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
 class WikipediaCollector(BaseCollector):
@@ -77,7 +81,7 @@ class WikipediaCollector(BaseCollector):
             if not title:
                 continue
 
-            snippet = str(item.get("snippet") or "").strip()
+            snippet = _plain_snippet(str(item.get("snippet") or ""))
             evidences.append(
                 evidence_from_fields(
                     title=title,
@@ -93,3 +97,8 @@ class WikipediaCollector(BaseCollector):
     def _article_url(self, title: str) -> str:
         slug = quote(title.replace(" ", "_"))
         return f"https://{self._language}.wikipedia.org/wiki/{slug}"
+
+
+def _plain_snippet(value: str) -> str:
+    """Wikipedia search snippets include ``<span class="searchmatch">`` markup."""
+    return _HTML_TAG_PATTERN.sub("", unescape(value)).strip()

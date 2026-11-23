@@ -22,9 +22,10 @@ _HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 class StackOverflowCollector(BaseCollector):
     """Search Stack Overflow questions around an event time window.
 
-    Uses the Stack Exchange ``/search/advanced`` endpoint. Works without a
-    key for light use; set ``api_key`` or ``STACKEXCHANGE_KEY`` for a higher
-    daily quota (https://stackapps.com/).
+    Uses the Stack Exchange ``/search/advanced`` endpoint. The keyword is a
+    tag and must appear in the question title, so a body-only mention is not
+    evidence. Works without a key for light use; set ``api_key`` or
+    ``STACKEXCHANGE_KEY`` for a higher daily quota (https://stackapps.com/).
     """
 
     def __init__(
@@ -55,7 +56,8 @@ class StackOverflowCollector(BaseCollector):
 
     async def collect(self, event: Event) -> list[Evidence]:
         params: dict[str, Any] = {
-            "q": event.keyword,
+            "tagged": _tag(event.keyword),
+            "title": event.keyword,
             "site": self._site,
             "sort": "relevance",
             "order": "desc",
@@ -82,16 +84,17 @@ class StackOverflowCollector(BaseCollector):
 
         if not isinstance(payload, dict):
             return []
-        return self._parse_items(payload.get("items", []))
+        return self._parse_items(payload.get("items", []), keyword=event.keyword)
 
-    def _parse_items(self, items: Any) -> list[Evidence]:
+    def _parse_items(self, items: Any, *, keyword: str) -> list[Evidence]:
         if not isinstance(items, list):
             return []
 
+        needle = keyword.casefold()
         evidences: list[Evidence] = []
         for item in items:
             evidence = self._parse_item(item)
-            if evidence is None:
+            if evidence is None or needle not in evidence.title.casefold():
                 continue
             evidences.append(evidence)
             if len(evidences) >= self._max_results:
@@ -102,7 +105,7 @@ class StackOverflowCollector(BaseCollector):
         if not isinstance(item, dict):
             return None
 
-        title = str(item.get("title") or "").strip()
+        title = self._strip_html(str(item.get("title") or ""))
         link = str(item.get("link") or "").strip()
         if not title or not link:
             return None
@@ -147,3 +150,8 @@ class StackOverflowCollector(BaseCollector):
         if moment.tzinfo is None:
             return moment.replace(tzinfo=UTC)
         return moment.astimezone(UTC)
+
+
+def _tag(keyword: str) -> str:
+    """Stack Exchange tags are lowercase; spaces become hyphens."""
+    return "-".join(keyword.casefold().split())

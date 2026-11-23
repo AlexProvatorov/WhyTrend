@@ -13,9 +13,17 @@ from whytrend.detectors._utils import (
     zscore_to_confidence,
 )
 
+# Normal-distribution consistency constant for the median absolute deviation.
+_MAD_SCALE = 1.4826
+
 
 class ZScoreDetector(BaseDetector):
-    """Detect anomalies using global mean and standard deviation."""
+    """Detect anomalies using a robust center and scale.
+
+    The center is the median. The scale is ``1.4826 * MAD`` so one spike does
+    not inflate the threshold. When the MAD is zero but the series still
+    varies, the population standard deviation is the fallback.
+    """
 
     def __init__(
         self,
@@ -46,16 +54,16 @@ class ZScoreDetector(BaseDetector):
         if len(values) < self._min_points:
             return self._empty_result(series, reason="insufficient_points")
 
-        mean = float(values.mean())
-        std = float(values.std(ddof=0))
-        if std == 0.0:
+        located = _robust_location(values)
+        if located is None:
             return self._empty_result(series, reason="zero_variance")
+        center, scale = located
 
         detections: list[Detection] = []
         for index in range(len(values)):
             timestamp = values.index[index]
             value = float(values.iloc[index])
-            z_score = abs((value - mean) / std)
+            z_score = abs((value - center) / scale)
             if z_score < self._threshold:
                 continue
 
@@ -63,24 +71,28 @@ class ZScoreDetector(BaseDetector):
             detections.append(
                 Detection(
                     timestamp=pd.Timestamp(timestamp).to_pydatetime(),
-                    anomaly_type=anomaly_type_from_residual(value, mean),
+                    anomaly_type=anomaly_type_from_residual(value, center),
                     value=value,
                     score=score,
-                    expected_value=mean,
+                    expected_value=center,
                     severity=score_to_severity(score),
                     index=index,
                 )
             )
 
-        detections.sort(key=lambda item: item.score, reverse=True)
+        detections.sort(
+            key=lambda item: (item.score, abs(item.value - center)),
+            reverse=True,
+        )
         return DetectionResult(
             detections=detections,
             detector_name=self.name,
             series_name=series.name,
             metadata={
                 "threshold": self._threshold,
-                "mean": mean,
-                "std": std,
+                "center": center,
+                "scale": scale,
+                "detection_count": len(detections),
             },
         )
 
@@ -91,3 +103,14 @@ class ZScoreDetector(BaseDetector):
             series_name=series.name,
             metadata={"reason": reason},
         )
+
+
+def _robust_location(values: pd.Series) -> tuple[float, float] | None:
+    center = float(values.median())
+    mad = float((values - center).abs().median())
+    if mad > 0.0:
+        return center, _MAD_SCALE * mad
+    std = float(values.std(ddof=0))
+    if std == 0.0:
+        return None
+    return center, std

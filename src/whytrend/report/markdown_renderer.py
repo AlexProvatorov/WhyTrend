@@ -49,10 +49,12 @@ class MarkdownRenderer(BaseReportRenderer):
             f"- **Event ID:** {explanation.event_id}",
             f"- **Anomaly type:** {explanation.anomaly_type.value}",
             f"- **Confidence:** {explanation.confidence:.2f}",
-            "",
-            explanation.summary,
-            "",
         ]
+        lines.extend(_event_context_lines(explanation))
+        lines.extend(_merged_detection_lines(explanation))
+        if explanation.verdict is not None:
+            lines.append(f"- **Verdict:** {explanation.verdict.value}")
+        lines.extend(["", explanation.summary, ""])
 
         if explanation.causes:
             lines.append("#### Causes")
@@ -75,6 +77,26 @@ class MarkdownRenderer(BaseReportRenderer):
             lines.append(f"   - Summary: {cause.summary}")
         lines.append("")
         return lines
+
+
+def _event_context_lines(explanation: Explanation) -> list[str]:
+    lines: list[str] = []
+    if explanation.timestamp is not None:
+        lines.append(f"- **Timestamp:** {explanation.timestamp.isoformat()}")
+    if explanation.value is not None:
+        lines.append(f"- **Value:** {explanation.value:g}")
+    if explanation.window_start is not None and explanation.window_end is not None:
+        start = explanation.window_start.isoformat()
+        end = explanation.window_end.isoformat()
+        lines.append(f"- **Window:** {start} to {end}")
+    return lines
+
+
+def _merged_detection_lines(explanation: Explanation) -> list[str]:
+    merged = explanation.metadata.get("merged_detections")
+    if not isinstance(merged, int) or merged <= 1:
+        return []
+    return [f"- **Merged detections:** {merged}"]
 
 
 def _format_metadata(metadata: dict) -> str:

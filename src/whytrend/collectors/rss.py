@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from html import unescape
 from xml.etree import ElementTree
 
 import httpx
@@ -327,4 +328,5 @@ class RSSFeedCollector(BaseCollector):
     def _clean_snippet(value: str) -> str:
         if not value:
             return ""
-        return _HTML_TAG_PATTERN.sub("", value).strip()
+        text = unescape(value).replace("\xa0", " ")
+        return _HTML_TAG_PATTERN.sub("", text).strip()

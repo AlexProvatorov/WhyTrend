@@ -48,7 +48,7 @@ class HTMLRenderer(BaseReportRenderer):
             f"<li><strong>Generated at:</strong> {escape(report.generated_at.isoformat())}</li>",
             "</ul>",
             "<h2>Executive Summary</h2>",
-            f"<p>{escape(report.executive_summary)}</p>",
+            *_summary_paragraphs(report.executive_summary),
             "<h2>Explanations</h2>",
         ]
 
@@ -76,10 +76,18 @@ class HTMLRenderer(BaseReportRenderer):
             f"<li><strong>Event ID:</strong> {escape(explanation.event_id)}</li>",
             f"<li><strong>Anomaly type:</strong> {escape(explanation.anomaly_type.value)}</li>",
             f"<li><strong>Confidence:</strong> {explanation.confidence:.2f}</li>",
-            "</ul>",
-            f"<p>{escape(explanation.summary)}</p>",
-            "<h4>Causes</h4>",
         ]
+        parts.extend(_event_context_items(explanation))
+        parts.extend(_merged_detection_items(explanation))
+        if explanation.verdict is not None:
+            parts.append(f"<li><strong>Verdict:</strong> {escape(explanation.verdict.value)}</li>")
+        parts.extend(
+            [
+                "</ul>",
+                f"<p>{escape(explanation.summary)}</p>",
+                "<h4>Causes</h4>",
+            ]
+        )
         if not explanation.causes:
             parts.append('<p class="empty">No causes were identified.</p>')
             return parts
@@ -105,6 +113,34 @@ class HTMLRenderer(BaseReportRenderer):
             lines.append(f"<li>Summary: {escape(cause.summary)}</li>")
         lines.append("</ul></div>")
         return "\n".join(lines)
+
+
+def _event_context_items(explanation: Explanation) -> list[str]:
+    items: list[str] = []
+    if explanation.timestamp is not None:
+        stamp = escape(explanation.timestamp.isoformat())
+        items.append(f"<li><strong>Timestamp:</strong> {stamp}</li>")
+    if explanation.value is not None:
+        items.append(f"<li><strong>Value:</strong> {explanation.value:g}</li>")
+    if explanation.window_start is not None and explanation.window_end is not None:
+        start = escape(explanation.window_start.isoformat())
+        end = escape(explanation.window_end.isoformat())
+        items.append(f"<li><strong>Window:</strong> {start} to {end}</li>")
+    return items
+
+
+def _merged_detection_items(explanation: Explanation) -> list[str]:
+    merged = explanation.metadata.get("merged_detections")
+    if not isinstance(merged, int) or merged <= 1:
+        return []
+    return [f"<li><strong>Merged detections:</strong> {merged}</li>"]
+
+
+def _summary_paragraphs(summary: str) -> list[str]:
+    blocks = [block.strip() for block in summary.split("\n\n") if block.strip()]
+    if not blocks:
+        return ["<p></p>"]
+    return [f"<p>{escape(block)}</p>" for block in blocks]
 
 
 def _format_metadata(metadata: dict) -> str:

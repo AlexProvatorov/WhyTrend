@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "whytrend"
-version = "0.5.0"
+version = "0.6.0"
 description = "Open Source Framework for Explainable Time Series Analysis"
 readme = "README.md"
 license = "Apache-2.0"
@@ -93,6 +93,10 @@ rss = "whytrend.collectors:RSSFeedCollector"
 [project.entry-points."whytrend.rankers"]
 bm25 = "whytrend.rankers:BM25Ranker"
 embedding = "whytrend.rankers:EmbeddingRanker"
+hybrid = "whytrend.rankers:HybridRanker"
+
+[project.entry-points."whytrend.filters"]
+evidence = "whytrend.filters:EvidenceFilter"
 
 [project.entry-points."whytrend.explainers"]
 llm = "whytrend.explainers:LLMExplainer"

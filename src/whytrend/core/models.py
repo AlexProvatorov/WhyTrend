@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from whytrend.core.enums import AnomalyType, DetectionSeverity
+from whytrend.core.enums import AnomalyType, DetectionSeverity, EvidenceVerdict
 
 
 def _utc_now() -> datetime:
@@ -122,6 +122,11 @@ class Explanation(WhyTrendModel):
     event_id: str
     anomaly_type: AnomalyType
     confidence: float = Field(ge=0.0, le=1.0)
+    verdict: EvidenceVerdict | None = None
+    timestamp: datetime | None = None
+    value: float | None = None
+    window_start: datetime | None = None
+    window_end: datetime | None = None
     summary: str
     causes: list[Cause] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)

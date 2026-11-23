@@ -8,6 +8,7 @@ import pytest
 from tests.plugin_support import FakeNewsCollector, FakeSpikeDetector
 from whytrend.collectors import HackerNewsCollector
 from whytrend.detectors import ZScoreDetector
+from whytrend.filters import EvidenceFilter
 from whytrend.plugins import (
     PLUGIN_GROUPS,
     PluginError,
@@ -15,6 +16,7 @@ from whytrend.plugins import (
     list_plugins,
     load_plugin,
 )
+from whytrend.rankers import BM25Ranker, EmbeddingRanker, HybridRanker
 
 
 def _entry(name: str, value: str, group: str) -> EntryPoint:
@@ -100,6 +102,11 @@ def test_builtin_entry_points_if_package_installed() -> None:
 
     assert load_plugin("whytrend.detectors", "zscore") is ZScoreDetector
     assert load_plugin("whytrend.collectors", "hacker_news") is HackerNewsCollector
+    rankers = list_plugins("whytrend.rankers")
+    assert rankers["bm25"] is BM25Ranker
+    assert rankers["embedding"] is EmbeddingRanker
+    assert load_plugin("whytrend.rankers", "hybrid") is HybridRanker
+    assert load_plugin("whytrend.filters", "evidence") is EvidenceFilter
     assert set(PLUGIN_GROUPS) >= {
         "whytrend.detectors",
         "whytrend.collectors",

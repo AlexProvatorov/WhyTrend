@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Protocol, runtime_checkable
 
+from whytrend.core.enums import EvidenceVerdict
 from whytrend.core.models import DetectionResult, Event, Evidence, Explanation, Report
 from whytrend.core.series import TimeSeries
 
@@ -146,6 +147,24 @@ class BaseCollector(ABC):
         raise NotImplementedError
 
 
+@runtime_checkable
+class Filter(Protocol):
+    """Drops weak evidence and decides how strongly the rest supports a cause."""
+
+    @property
+    def name(self) -> str:
+        """Human-readable filter name."""
+        ...
+
+    def filter(self, evidences: list[Evidence]) -> tuple[list[Evidence], EvidenceVerdict]:
+        """Return the kept evidence and the verdict for what remains."""
+        ...
+
+    def cap_confidence(self, explanation: Explanation) -> Explanation:
+        """Clamp confidence and cause scores to the ceiling for ``explanation.verdict``."""
+        ...
+
+
 class BaseRanker(ABC):
     """Optional ABC for ranker implementations."""
 
@@ -156,6 +175,23 @@ class BaseRanker(ABC):
 
     @abstractmethod
     def rank(self, event: Event, evidences: list[Evidence]) -> list[Evidence]:
+        raise NotImplementedError
+
+
+class BaseFilter(ABC):
+    """Optional ABC for evidence-filter implementations."""
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def filter(self, evidences: list[Evidence]) -> tuple[list[Evidence], EvidenceVerdict]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def cap_confidence(self, explanation: Explanation) -> Explanation:
         raise NotImplementedError
 
 

@@ -19,8 +19,9 @@ GITHUB_API_BASE = "https://api.github.com"
 class GitHubReleasesCollector(BaseCollector):
     """Find GitHub release announcements related to an event keyword.
 
-    Searches repositories matching ``event.keyword``, then fetches their
-    releases and keeps those published within ``[window_start, window_end]``.
+    Searches repositories with ``event.keyword`` in the name, most starred
+    first, then fetches their releases and keeps those published within
+    ``[window_start, window_end]``. A pinned ``repos`` list skips the search.
 
     Works without authentication for light use. Set ``token`` or
     ``GITHUB_TOKEN`` for higher GitHub API rate limits.
@@ -92,7 +93,7 @@ class GitHubReleasesCollector(BaseCollector):
             f"{GITHUB_API_BASE}/search/repositories",
             params={
                 "q": f"{keyword} in:name",
-                "sort": "updated",
+                "sort": "stars",
                 "order": "desc",
                 "per_page": self._max_repos,
             },

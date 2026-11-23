@@ -43,7 +43,7 @@ pip install -e ".[trends]"      # Google Trends
 pip install -e ".[prophet]"       # Prophet detector
 pip install -e ".[ruptures]"      # change-point detector
 pip install -e ".[river]"         # online / streaming detector
-pip install -e ".[ranking]"       # Embedding ranker
+pip install -e ".[ranking]"       # Embedding and hybrid rankers
 pip install -e ".[pdf]"           # PDF reports (xhtml2pdf)
 pip install -e ".[reports]"       # report extras (currently PDF)
 pip install -e ".[all]"           # everything
@@ -58,7 +58,6 @@ whytrend analyze \
   --csv tests/fixtures/python_interest.csv \
   --keyword Python \
   --detector zscore \
-  --set detector.threshold=1.0 \
   --explainer mock \
   --out report.md
 ```
@@ -112,7 +111,7 @@ from whytrend import (
 pipeline = (
     Pipeline(window_days=3)
     .add_source(CSVSource("tests/fixtures/python_interest.csv", keyword="Python"))
-    .add_detector(ZScoreDetector(threshold=1.0))
+    .add_detector(ZScoreDetector())
     .add_ranker(BM25Ranker(top_k=5))
     .add_explainer(LLMExplainer(MockLLMProvider()))
 )
@@ -232,7 +231,7 @@ Or pass them explicitly:
 RedditCollector(client_id="...", client_secret="...", subreddits=["Python", "MachineLearning"])
 ```
 
-GitHub Releases works without a token for light use. For higher rate limits:
+GitHub Releases searches starred repositories whose name contains the keyword, then keeps releases inside the event window. Pass `repos` to pin the list. It works without a token for light use. For higher rate limits:
 
 ```bash
 export GITHUB_TOKEN="ghp_..."
@@ -242,7 +241,7 @@ export GITHUB_TOKEN="ghp_..."
 GitHubReleasesCollector(token="ghp_...", repos=["python/cpython"])
 ```
 
-Stack Overflow works without a key for light use. For a higher daily quota
+Stack Overflow searches questions tagged with the keyword that also use it in the title. It works without a key for light use. For a higher daily quota
 (register at [https://stackapps.com/](https://stackapps.com/)):
 
 ```bash
@@ -288,6 +287,75 @@ RupturesDetector(algorithm="pelt", model="rbf", penalty=10.0)
 RiverDetector(model="gaussian", threshold=0.95, min_points=10)
 ```
 
+### Choosing a ranker
+
+| Ranker              | Best for                             | Notes                                                         |
+| ------------------- | ------------------------------------ | ------------------------------------------------------------- |
+| **BM25Ranker**      | Exact keyword overlap                | No extra dependencies                                         |
+| **EmbeddingRanker** | Paraphrases of the event keyword     | Needs `whytrend[ranking]`                                     |
+| **HybridRanker**    | Exact terms and paraphrases together | BM25 and embeddings merged with RRF; needs `whytrend[ranking]` |
+
+
+```python
+from whytrend import BM25Ranker, EmbeddingRanker, HybridRanker
+
+BM25Ranker(top_k=5)
+EmbeddingRanker(top_k=5)  # pip install 'whytrend[ranking]'
+HybridRanker(top_k=5)  # pip install 'whytrend[ranking]'
+```
+
+`whytrend analyze --ranker bm25`, `--ranker embedding`, and `--ranker hybrid` each fill the pipeline's single ranker slot. BM25 scores are a fraction of a perfect match for the query, not a stretch that makes the best item `1.0`. Embedding relevance is cosine clamped to `[0, 1]`, so an unrelated page scores near `0` rather than `0.5`. Hybrid orders with reciprocal rank fusion and keeps the mean of the two scores, so a weak mention stays below `cause_threshold`.
+
+Each ranker takes `time_weight` (default `0.0`). At `0`, scores stay on the text match. Above that, an item published at `event.timestamp` keeps its score, and one at `window_start` or `window_end` keeps less:
+
+```text
+adjusted = relevance * ((1 - time_weight) + time_weight * time_factor)
+```
+
+`time_factor` is 1 on the event timestamp and 0 at either edge of the window. The result stays in `[0, 1]`. A missing `published_at` is not penalised, so an undated page stays eligible and the evidence filter decides whether it is a cause. An item outside the window scores lower as `time_weight` grows; the ranker does not drop it. `HybridRanker` passes `time_weight` into BM25 and embeddings before reciprocal rank fusion, and the fusion formula itself stays rank positions only.
+
+```python
+BM25Ranker(top_k=5, time_weight=0.5)
+HybridRanker(top_k=5, time_weight=0.5)  # pip install 'whytrend[ranking]'
+```
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --ranker hybrid \
+  --set ranker.time_weight=0.5
+```
+
+### Evidence filter
+
+Ranking only reorders evidence. `EvidenceFilter` runs after the ranker and before the explainer. It drops items below `keep_threshold` (default `0.2`), sorts what remains by `relevance_score`, and sets `Explanation.verdict`:
+
+| Verdict | When | Confidence ceiling |
+| --- | --- | --- |
+| `likely_cause` | At least one kept item is at or above `cause_threshold` (default `0.6`) | `1.0` (`likely_cause_cap`) |
+| `correlation_only` | Items remain, and every one of them is below `cause_threshold` | `0.6` (`correlation_only_cap`) |
+| `evidence_insufficient` | Nothing remains | `0.3` (`evidence_insufficient_cap`) |
+
+`likely_cause` is the only verdict whose summary may say "likely cause", including inside a longer phrase such as "The likely cause is". `evidence_insufficient` has no cause. After the explainer returns, the filter clamps `Explanation.confidence` and every `Cause.score` to that verdict's ceiling. A likely cause can still be `1.0`. A pipeline with no filter leaves the explainer's confidence unchanged. When a number is lowered, the explanation metadata includes `confidence_capped: true`. The filter is optional and works with `bm25`, `embedding`, and `hybrid`.
+
+```python
+from whytrend import EvidenceFilter
+
+EvidenceFilter(keep_threshold=0.2, cause_threshold=0.6)
+```
+
+```bash
+whytrend analyze \
+  --csv tests/fixtures/python_interest.csv \
+  --keyword Python \
+  --ranker bm25 \
+  --filter evidence \
+  --set filter.keep_threshold=0.3 \
+  --set filter.cause_threshold=0.7 \
+  --set filter.correlation_only_cap=0.5
+```
+
 ## Writing a WhyTrend plugin
 
 Third-party packages can register components without forking WhyTrend. Direct imports (`from whytrend import ZScoreDetector`) remain the supported API.
@@ -305,6 +373,7 @@ Groups:
 - `whytrend.detectors`
 - `whytrend.collectors`
 - `whytrend.rankers`
+- `whytrend.filters`
 - `whytrend.explainers`
 
 Discover and load plugins at runtime:
@@ -321,7 +390,7 @@ MyNews = load_plugin("whytrend.collectors", "my_news")
 
 ## Roadmap
 
-Core MVP is in place. Next focus: **integrations and ecosystem**.
+Core MVP is in place. Next focus: **ranking quality**, then explanations you can check, then analyst decisions.
 
 ### v0.2 — More collectors
 - [x] Google News
@@ -343,8 +412,23 @@ Core MVP is in place. Next focus: **integrations and ecosystem**.
 - [x] Plugin registry (entry points)
 
 ### v0.6 — Ranking quality
-- [ ] Hybrid ranker (BM25 + embeddings merged with RRF)
-- [ ] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
+- [x] Hybrid ranker (BM25 + embeddings merged with RRF)
+- [x] Post-ranker evidence filter (relevance thresholds, stronger rerank, explicit verdicts like `evidence_insufficient` / `correlation_only` / `likely_cause`)
+- [x] Time proximity in the relevance score (`published_at` inside the event window, not only lexical match)
+- [x] Confidence cap: explainer confidence cannot exceed the evidence-filter verdict
+
+### v0.7 — Explanations you can check
+- [ ] Known-event eval set (expected verdicts for releases, news spikes, and empty background)
+- [ ] Ground every cause URL in collected evidence; drop invented links before the report
+- [ ] Cluster adjacent detections into one event instead of one LLM call per point
+- [ ] Surface collector failures in report metadata instead of dropping them silently
+- [ ] HTML report chart of the series, the event window, and the detection
+
+### v0.8 — Analyst decisions
+- [ ] Movement shape: one-off spike, level shift, seasonality, or sustained growth (`seasonality_break` is declared but unused)
+- [ ] Compare several series: a move shared by all of them, or isolated to one keyword
+- [ ] Example private-context collector (changelog or event CSV), not only public web sources
+- [ ] Stable `Report` contract and leave Pre-Alpha once the known-event set passes
 
 Track progress in [GitHub Issues](https://github.com/AlexProvatorov/WhyTrend/issues).
 

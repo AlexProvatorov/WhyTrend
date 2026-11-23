@@ -63,3 +63,16 @@ class BM25Okapi:
                 scores[index] += idf * (numerator / denominator) * query_freq
 
         return scores
+
+    def query_ceiling(self, query: list[str]) -> float:
+        """BM25 of a document that saturates every query term present in the corpus."""
+        if not query:
+            return 0.0
+
+        total = 0.0
+        for term, query_freq in Counter(query).items():
+            idf = self._idf.get(term)
+            if idf is None:
+                continue
+            total += idf * (self._k1 + 1) * query_freq
+        return total
